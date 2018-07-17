@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Interactive.Plot (
-    Coord(..), Range(..), PointStyle(..), Series(..), Alignment(..)
+    Coord(..), Range(..), PointStyle(..), Series(..), Alignment(..), RangeRatio(..), PlotRange(..)
   , renderPlot
   ) where
 
@@ -48,17 +48,60 @@ data Alignment = ALeft
                | ACenter
                | ARight
 
+data RangeRatio = RR { -- | Where on the screen (0 to 1) to place the other axis
+                       rrZero  :: Double
+                       -- | Ratio of height of a terminal character to width
+                     , rrRatio :: Double
+                     }
+                deriving (Show)
+
+data PlotRange = PRXY (Coord (Range Double))
+               | PRX  (Range Double) RangeRatio
+               | PRY  RangeRatio     (Range Double)
+
+plotRange
+    :: Coord (Range Int)      -- ^ display region
+    -> PlotRange              -- ^ plot axis range specification
+    -> Coord (Range Double)   -- ^ actual plot axis range
+plotRange dr = \case
+    PRXY pr        -> pr
+    PRX  rX RR{..} ->
+      let yr = rSize rX * fromIntegral (rSize (cY dr)) / fromIntegral (rSize (cX dr)) * rrRatio
+          y0 = (rrZero - 1) * yr
+      in  C rX (R y0 (y0 + yr))
+    PRY  RR{..} rY ->
+      let xr = rSize rY * fromIntegral (rSize (cY dr)) / fromIntegral (rSize (cX dr)) * rrRatio
+          x0 = (rrZero - 1) * xr
+      in  C (R x0 (x0 + xr)) rY
+
+-- mkRange
+--     :: (Double, Double)
+--     -> PlotRange
+--     -> ((Double, Double), (Double, Double))
+-- mkRange (wd, ht) = \case
+--     PXY xb     yb     -> (xb, yb)
+--     PX  xb     RR{..} ->
+--       let yr = (uncurry (-) xb) * ht / wd * rrRatio
+--           y0 = (rrZero - 1) * yr
+--       in  (xb, (y0, y0 + yr))
+--     PY  RR{..} yb ->
+--       let xr = (uncurry (-) yb) * wd / ht / rrRatio
+--           x0 = (rrZero - 1) * xr
+--       in  ((x0, x0 + xr), yb)
+
 renderPlot
     :: Coord (Range Int)        -- ^ display region
-    -> Coord (Range Int)        -- ^ plot axis range
+    -> PlotRange                -- ^ plot axis range spec
     -> [Series]
     -> [Image]
-renderPlot dr pr ss = concatMap (renderSeries dr pr) ss
-                   ++ renderAxis dr pr
+renderPlot dr pr ss = concatMap (renderSeries dr pr') ss
+                   ++ renderAxis dr pr'
+  where
+    pr' = plotRange dr pr
 
 renderAxis
     :: Coord (Range Int)        -- ^ display region
-    -> Coord (Range Int)        -- ^ plot axis range
+    -> Coord (Range Double)     -- ^ plot axis range
     -> [Image]
 renderAxis dr pr = placeImage dr pr (C ACenter ACenter) (C 0 0) <$>
                      [origin, xAxis, yAxis]
@@ -69,7 +112,7 @@ renderAxis dr pr = placeImage dr pr (C ACenter ACenter) (C 0 0) <$>
 
 placeImage
     :: Coord (Range Int)        -- ^ Display region
-    -> Coord (Range Int)        -- ^ Plot axis range
+    -> Coord (Range Double)     -- ^ Plot axis range
     -> Coord Alignment          -- ^ Alignment
     -> Coord Double             -- ^ Position in plot space
     -> Image                    -- ^ Image to place
@@ -77,8 +120,7 @@ placeImage
 placeImage dr pr (C aX aY) r i = translate x' (rSize (cY dr) - y') i
   where
     dr' = (fmap . fmap) fromIntegral dr
-    pr' = (fmap . fmap) fromIntegral pr
-    scaled  = lerp <$> pr' <*> dr' <*> r
+    scaled  = lerp <$> pr <*> dr' <*> r
     C x' y' = (round <$> scaled) + C (aligner aX (imageWidth  i))
                                      (negate (aligner aY (imageHeight i)))
     aligner = \case
@@ -97,7 +139,7 @@ lerp rOld rNew x =
 
 renderSeries
     :: Coord (Range Int)        -- ^ Display region
-    -> Coord (Range Int)        -- ^ Plot axis range
+    -> Coord (Range Double)     -- ^ Plot axis range
     -> Series                   -- ^ Series to plot
     -> [Image]
 renderSeries dr pr Series{..} = map go sItems
