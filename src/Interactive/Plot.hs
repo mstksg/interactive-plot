@@ -1,3 +1,5 @@
+{-# LANGUAGE ApplicativeDo   #-}
+{-# LANGUAGE DeriveFoldable  #-}
 {-# LANGUAGE DeriveFunctor   #-}
 {-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -8,12 +10,15 @@ module Interactive.Plot (
   ) where
 
 import           Control.Applicative
+import           Data.Foldable
+import           Data.Functor.Compose
 import           Graphics.Vty
+import           Text.Printf
 
 data Coord a = C { cX :: a
                  , cY :: a
                  }
-  deriving (Functor)
+  deriving (Functor, Foldable)
 
 instance Num a => Num (Coord a) where
     (+) = liftA2 (+)
@@ -31,7 +36,11 @@ instance Applicative Coord where
 data Range a = R { rMin :: a
                  , rMax :: a
                  }
-  deriving (Functor)
+  deriving (Functor, Foldable)
+
+instance Applicative Range where
+    pure x = R x x
+    R f g <*> R x y = R (f x) (g y)
 
 rSize :: Num a => Range a -> a
 rSize R{..} = rMax - rMin
@@ -74,21 +83,6 @@ plotRange dr = \case
           x0 = (rrZero - 1) * xr
       in  C (R x0 (x0 + xr)) rY
 
--- mkRange
---     :: (Double, Double)
---     -> PlotRange
---     -> ((Double, Double), (Double, Double))
--- mkRange (wd, ht) = \case
---     PXY xb     yb     -> (xb, yb)
---     PX  xb     RR{..} ->
---       let yr = (uncurry (-) xb) * ht / wd * rrRatio
---           y0 = (rrZero - 1) * yr
---       in  (xb, (y0, y0 + yr))
---     PY  RR{..} yb ->
---       let xr = (uncurry (-) yb) * wd / ht / rrRatio
---           x0 = (rrZero - 1) * xr
---       in  ((x0, x0 + xr), yb)
-
 renderPlot
     :: Coord (Range Int)        -- ^ display region
     -> PlotRange                -- ^ plot axis range spec
@@ -103,12 +97,20 @@ renderAxis
     :: Coord (Range Int)        -- ^ display region
     -> Coord (Range Double)     -- ^ plot axis range
     -> [Image]
-renderAxis dr pr = placeImage dr pr (C ACenter ACenter) (C 0 0) <$>
-                     [origin, xAxis, yAxis]
+renderAxis dr pr = foldMap toList axisBounds ++ axisLines
   where
     origin = char defAttr '+'
     xAxis  = charFill defAttr '-' (rSize (cX dr)) 1
     yAxis  = charFill defAttr '|' 1               (rSize (cY dr))
+    axisLines = placeImage dr pr (C ACenter ACenter) (C 0 0) <$>
+                     [origin, xAxis, yAxis]
+    axisBounds :: Coord (Range Image)
+    axisBounds = getCompose $ do
+      pos    <- Compose pr
+      coords <- Compose $ C (pure $ \d -> C d 0) (pure $ \d -> C 0 d)
+      xAlign <- Compose $ C (R ALeft   ARight ) (R ACenter ACenter)
+      yAlign <- Compose $ C (R ACenter ACenter) (R ARight  ALeft  )
+      pure $ placeImage dr pr (C xAlign yAlign) (coords pos) (string defAttr $  printf "%.2f" pos)
 
 placeImage
     :: Coord (Range Int)        -- ^ Display region

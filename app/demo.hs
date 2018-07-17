@@ -25,6 +25,6 @@ main = do
     forever $ do
       e <- nextEvent vty
       case e of
-        EvKey KEsc [] -> shutdown vty *> exitSuccess
-        _             -> pure ()
+        EvKey (KChar 'q') [] -> shutdown vty *> exitSuccess
+        _                    -> pure ()
 
