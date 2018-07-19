@@ -5,16 +5,35 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Interactive.Plot.Core (
-    Coord(..), Range(..), PointStyle(..), Series(..), Alignment(..), RangeRatio(..), PlotRange(..)
-  , renderPlot, plotRange
+    Coord(..), Range(..), PointStyle(..), Series(..), Alignment(..), PlotOpts
+  , renderPlot
   , scaleRange, rSize
+  , OrdColor(..)
+  , plotRange
   ) where
 
 import           Control.Applicative
+import           Data.Default
 import           Data.Foldable
 import           Data.Functor.Compose
+import           Data.Coerce
 import           Graphics.Vty
 import           Text.Printf
+
+newtype OrdColor = OC { getOC :: Color }
+    deriving Eq
+
+instance Ord OrdColor where
+    compare = coerce compareColor
+      where
+        compareColor = \case
+          ISOColor c -> \case
+            ISOColor d -> compare c d
+            Color240 _ -> LT
+          Color240 c -> \case
+            ISOColor _ -> GT
+            Color240 d -> compare c d
+
 
 data Coord a = C { cX :: a
                  , cY :: a
@@ -49,6 +68,19 @@ rSize R{..} = rMax - rMin
 data PointStyle = PointStyle { psMarker :: Char
                              , psColor  :: Color
                              }
+  deriving (Eq)
+
+instance Ord PointStyle where
+    compare (PointStyle m1 c1) (PointStyle m2 c2)
+        = compare m1 m2 <> compareColor c1 c2
+      where
+        compareColor = \case
+          ISOColor c -> \case
+            ISOColor d -> compare c d
+            Color240 _ -> LT
+          Color240 c -> \case
+            ISOColor _ -> GT
+            Color240 d -> compare c d
 
 data Series = Series { sItems :: [Coord Double]
                      , sStyle :: PointStyle
@@ -58,31 +90,46 @@ data Alignment = ALeft
                | ACenter
                | ARight
 
-data RangeRatio = RR { -- | Where on the screen (0 to 1) to place the other axis
-                       rrZero  :: Double
-                       -- | Ratio of height of a terminal character to width
-                     , rrRatio :: Double
-                     }
-                deriving (Show)
+-- data RangeRatio = RR { -- | Where on the screen (0 to 1) to place the other axis
+--                        rrZero  :: Double
+--                        -- | Ratio of height of a terminal character to width
+--                      , rrRatio :: Double
+--                      }
+--                 deriving (Show)
 
-data PlotRange = PRXY (Coord (Range Double))
-               | PRX  (Range Double) RangeRatio
-               | PRY  RangeRatio     (Range Double)
+data PlotOpts = PO { poRatio :: Double      -- ^ character width ratio (height to width)
+                   }
+
+instance Default PlotOpts where
+    def = PO { poRatio = 2.1
+             }
+
 
 plotRange
-    :: Coord (Range Int)      -- ^ display region
-    -> PlotRange              -- ^ plot axis range specification
+    :: PlotOpts
+    -> Coord (Range Int)      -- ^ display region
+    -> Maybe (Range Double)   -- ^ X range
+    -> Maybe (Range Double)   -- ^ Y range
+    -> [Series]               -- ^ Points
     -> Coord (Range Double)   -- ^ actual plot axis range
-plotRange dr = \case
-    PRXY pr        -> pr
-    PRX  rX RR{..} ->
-      let yr = rSize rX * fromIntegral (rSize (cY dr)) / fromIntegral (rSize (cX dr)) * rrRatio
-          y0 = (rrZero - 1) * yr
-      in  C rX (R y0 (y0 + yr))
-    PRY  RR{..} rY ->
-      let xr = rSize rY * fromIntegral (rSize (cY dr)) / fromIntegral (rSize (cX dr)) * rrRatio
-          x0 = (rrZero - 1) * xr
-      in  C (R x0 (x0 + xr)) rY
+plotRange PO{..} dr rX rY ss = case (rX, rY) of
+    (Nothing, Nothing) -> pointRange
+    (Just x , Nothing) -> C x (setRangeSize (rSize x * displayRatio) $ cY pointRange)
+    (Nothing, Just y ) -> C (setRangeSize (rSize y / displayRatio) $ cX pointRange) y
+    (Just x , Just y ) -> C x y
+  where
+    displayRatio = fromIntegral (rSize (cY dr))
+                 / (fromIntegral (rSize (cX dr)) * poRatio)
+    unZero :: Range Double -> Range Double
+    unZero r
+      | rSize r == 0 = R (subtract 1) (+ 1) <*> r
+      | otherwise    = r
+    pointRange :: Coord (Range Double)
+    pointRange = fmap unZero
+               . foldl' (liftA2 go) (C (R 0 0) (R 0 0))
+               $ concatMap sItems ss
+      where
+        go oldR x = R min max <*> pure x <*> oldR
 
 renderPlot
     :: Coord (Range Int)        -- ^ display region
@@ -146,6 +193,10 @@ scaleRange x r = lerp unit r . (* x) . lerp r unit <$> r
   where
     unit = R (-1) 1
 
+setRangeSize :: Fractional a => a -> Range a -> Range a
+setRangeSize x r = lerp unit r <$> R (-x/2) (x/2)
+  where
+    unit = R (-1) 1
 
 renderSeries
     :: Coord (Range Int)        -- ^ Display region

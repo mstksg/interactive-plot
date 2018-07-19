@@ -23,6 +23,12 @@ dependencies:
 - base >= 4.7 && < 5
 - vty
 - transformers
+- containers
+- MonadRandom
+- mtl
+- microlens
+- microlens-platform
+- data-default
 
 ghc-options:
 - -Wall

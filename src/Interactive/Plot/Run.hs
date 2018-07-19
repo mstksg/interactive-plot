@@ -1,6 +1,5 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE LambdaCase    #-}
-{-# LANGUAGE ViewPatterns  #-}
 
 module Interactive.Plot.Run (
     runPlot
@@ -9,7 +8,6 @@ module Interactive.Plot.Run (
 import           Control.Applicative
 import           Control.Concurrent
 import           Control.Monad
-import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Maybe
 import           Data.Foldable
 import           Data.IORef
@@ -20,12 +18,14 @@ data PEvent = PEQuit
             | PEZoom   Double
             | PEPan    (Coord Double)
             | PEResize (Coord Int)
+            | PEReset
 
 processEvent :: Event -> Maybe PEvent
 processEvent = \case
     EvKey KEsc        []      -> Just PEQuit
     EvKey (KChar 'c') [MCtrl] -> Just PEQuit
     EvKey (KChar 'q') []      -> Just PEQuit
+    EvKey (KChar 'r') []      -> Just PEReset
     EvKey (KChar '=') []      -> Just $ PEZoom (sqrt 0.5)
     EvKey (KChar '+') []      -> Just $ PEZoom (sqrt 0.5)
     EvKey (KChar '-') []      -> Just $ PEZoom (sqrt 2)
@@ -52,23 +52,27 @@ displayRange o = do
     pure $ C (R 0 wd) (R 0 ht)
 
 runPlot
-    :: PlotRange
+    :: PlotOpts
+    -> Maybe (Range Double)     -- ^ x range
+    -> Maybe (Range Double)     -- ^ y range
     -> [Series]
     -> IO ()
-runPlot pr ss = do
+runPlot po rX rY ss = do
     vty   <- mkVty =<< standardIOConfig
-    dr    <- displayRange $ outputIface vty
-    psRef <- newIORef PlotState { psRange    = plotRange dr pr
-                                , psSerieses = ss
-                                }
-
+    psRef <- newIORef =<< initPS vty
     peChan <- newChan
     tPE <- forkIO . forever $
       traverse_ (writeChan peChan) . processEvent =<< nextEvent vty
 
-    void . runMaybeT . many . (guard =<<) . liftIO $
+    void . runMaybeT . many . MaybeT . fmap guard $
       plotLoop vty peChan psRef tPE
   where
+    initPS :: Vty -> IO PlotState
+    initPS vty = do
+      dr    <- displayRange $ outputIface vty
+      pure PlotState { psRange    = plotRange po dr rX rY ss
+                     , psSerieses = ss
+                     }
     plotLoop
         :: Vty
         -> Chan PEvent
@@ -103,4 +107,7 @@ runPlot pr ss = do
                 pure $ scaleRange (fromIntegral d1 / fromIntegral d0) r0
           writeIORef psRef $
             ps { psRange = newRange }
+          pure True
+        PEReset -> do
+          writeIORef psRef =<< initPS vty
           pure True
