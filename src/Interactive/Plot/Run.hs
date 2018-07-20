@@ -1,6 +1,5 @@
 {-# LANGUAGE ApplicativeDo   #-}
 {-# LANGUAGE LambdaCase      #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module Interactive.Plot.Run (
     runPlot
@@ -17,7 +16,6 @@ import           Graphics.Vty
 import           Interactive.Plot.Core
 import           Interactive.Plot.Series
 import           Lens.Micro
-import           Lens.Micro.TH
 
 data PEvent = PEQuit
             | PEZoom   Double
@@ -52,7 +50,8 @@ data PlotState = PlotState
     , _psSerieses :: [Series]
     }
 
-makeLenses ''PlotState
+psRange :: Lens' PlotState (Coord (Range Double))
+psRange f (PlotState r s) = (`PlotState` s) <$> f r
 
 displayRange :: Output -> IO (Coord (Range Int))
 displayRange o = do
