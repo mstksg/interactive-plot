@@ -17,7 +17,6 @@ import           Graphics.Vty
 import           Interactive.Plot.Core
 import           Interactive.Plot.Series
 import           Lens.Micro
-import           Lens.Micro.Extras
 import           Lens.Micro.TH
 
 data PEvent = PEQuit

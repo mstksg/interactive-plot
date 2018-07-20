@@ -3,8 +3,8 @@
 {-# LANGUAGE TemplateHaskell  #-}
 
 module Interactive.Plot.Series (
-    AutoPointStyle(..)
-  , AutoSeries(..)
+    AutoPointStyle(..), apsMarker, apsColor
+  , AutoSeries(..), asItems, asStyle
   , defaultStyles
   , fromAutoSeries
   , listSeries
