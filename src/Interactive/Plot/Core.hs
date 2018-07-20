@@ -21,10 +21,13 @@ module Interactive.Plot.Core (
   ) where
 
 import           Control.Applicative
+import           Control.Monad
 import           Data.Coerce
 import           Data.Default
 import           Data.Foldable
 import           Data.Functor.Compose
+import           Data.Maybe
+import           Data.Ord
 import           Graphics.Vty
 import           Lens.Micro
 import           Lens.Micro.TH
@@ -83,16 +86,7 @@ data PointStyle = PointStyle { _psMarker :: Char
 makeLenses ''PointStyle
 
 instance Ord PointStyle where
-    compare (PointStyle m1 c1) (PointStyle m2 c2)
-        = compare m1 m2 <> compareColor c1 c2
-      where
-        compareColor = \case
-          ISOColor c -> \case
-            ISOColor d -> compare c d
-            Color240 _ -> LT
-          Color240 c -> \case
-            ISOColor _ -> GT
-            Color240 d -> compare c d
+    compare = comparing $ \case PointStyle m1 c1 -> (m1, OC c1)
 
 data Series = Series { _sItems :: [Coord Double]
                      , _sStyle :: PointStyle
@@ -135,6 +129,9 @@ rSize f (R2 m s) = R2 m <$> f s
 
 rMid :: Fractional a => Lens' (Range a) a
 rMid f (R2 m s) = (`R2` s) <$> f m
+
+within :: Ord a => a -> Range a -> Bool
+within x r = x >= r ^. rMin && x <= r ^. rMax
 
 plotRange
     :: PlotOpts
@@ -242,10 +239,11 @@ renderSeries
     -> Coord (Range Double)     -- ^ Plot axis range
     -> Series                   -- ^ Series to plot
     -> [Image]
-renderSeries dr pr Series{..} = map go _sItems
+renderSeries dr pr Series{..} = mapMaybe go _sItems
   where
-    go :: Coord Double -> Image
-    go r = placeImage dr pr (C ACenter ACenter) r $ renderPoint _sStyle
+    go :: Coord Double -> Maybe Image
+    go r = placeImage dr pr (C ACenter ACenter) r (renderPoint _sStyle)
+              <$ guard (and $ within <$> r <*> pr)
 
 renderPoint
     :: PointStyle
