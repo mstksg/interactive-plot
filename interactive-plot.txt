@@ -82,10 +82,14 @@ data AutoPointStyle
 APS :: Maybe Char -> Maybe Color -> AutoPointStyle
 [_apsMarker] :: AutoPointStyle -> Maybe Char
 [_apsColor] :: AutoPointStyle -> Maybe Color
+apsMarker :: Lens' AutoPointStyle (Maybe Char)
+apsColor :: Lens' AutoPointStyle (Maybe Color)
 data AutoSeries
 AS :: [Coord Double] -> AutoPointStyle -> AutoSeries
 [_asItems] :: AutoSeries -> [Coord Double]
 [_asStyle] :: AutoSeries -> AutoPointStyle
+asItems :: Lens' AutoSeries [Coord Double]
+asStyle :: Lens' AutoSeries AutoPointStyle
 defaultStyles :: Set PointStyle
 fromAutoSeries :: [AutoSeries] -> [Series]
 listSeries :: [Double] -> AutoPointStyle -> AutoSeries
