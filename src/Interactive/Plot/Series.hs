@@ -18,6 +18,7 @@ import           Control.Monad.Random
 import           Control.Monad.State
 import           Data.Default
 import           Data.Foldable
+import qualified Data.Map as M
 import           Data.Maybe
 import           Graphics.Vty
 import           Interactive.Plot.Core
@@ -36,7 +37,7 @@ makeLenses ''AutoPointStyle
 instance Default AutoPointStyle where
     def = APS Nothing Nothing
 
-data AutoSeries = AS { _asItems :: [Coord Double]
+data AutoSeries = AS { _asItems :: M.Map Double (S.Set Double)
                      , _asStyle :: AutoPointStyle
                      }
   deriving Show
@@ -44,13 +45,15 @@ data AutoSeries = AS { _asItems :: [Coord Double]
 makeLenses ''AutoSeries
 
 listSeries :: Foldable t => t Double -> AutoPointStyle -> AutoSeries
-listSeries xs = AS (zipWith C [0..] (toList xs))
+listSeries xs = AS (toCoordMap . zipWith C [0..] . toList $ xs)
 
 tupleSeries :: Foldable t => t (Double, Double) -> AutoPointStyle -> AutoSeries
-tupleSeries xs = AS (uncurry C <$> toList xs)
+tupleSeries xs = AS (toCoordMap (uncurry C <$> toList xs))
 
 autoSeries :: Series -> AutoSeries
-autoSeries (Series xs PointStyle{..}) = AS xs $ APS (Just _psMarker) (Just _psColor)
+autoSeries s = AS (s ^. sItems)
+             $ APS (Just (s ^. sStyle . psMarker))
+                   (Just (s ^. sStyle . psColor))
 
 enumRange :: Int -> Range Double -> [Double]
 enumRange n r = (+ r ^. rMin) . (* s) . fromIntegral <$> [0 .. (n - 1)]

@@ -12,7 +12,7 @@ module Interactive.Plot.Core (
     Coord(..), cX, cY
   , Range(.., R2), rMin, rMax, rSize, rMid, _rSize
   , PointStyle(..), psMarker, psColor
-  , Series(..), sItems, sStyle
+  , Series(..), sItems, sStyle, coordMap, toCoordMap
   , Alignment(..)
   , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange, poRange
   , renderPlot
@@ -90,7 +90,7 @@ makeLenses ''PointStyle
 instance Ord PointStyle where
     compare = comparing $ \case PointStyle m1 c1 -> (m1, OC c1)
 
-data Series = Series { _sItems :: [Coord Double]
+data Series = Series { _sItems :: M.Map Double (S.Set Double)
                      , _sStyle :: PointStyle
                      }
 
@@ -138,6 +138,10 @@ within x r = x >= r ^. rMin && x <= r ^. rMax
 poRange :: Lens' PlotOpts (Maybe (Range Double), Maybe (Range Double))
 poRange f (PO r a x y) = uncurry (PO r a) <$> f (x, y)
 
+coordMap :: Ord a => Lens' (M.Map a (S.Set a)) [Coord a]
+coordMap = lens (M.foldMapWithKey (\k -> foldMap ((:[]) . C k)))
+                (const toCoordMap)
+
 plotRange
     :: PlotOpts
     -> Coord (Range Int)      -- ^ display region
@@ -174,10 +178,11 @@ plotRange PO{..} dr ss = case _poAspectRatio of
       | otherwise       = r
     pointRangeRatio :: Double
     pointRangeRatio = pointRange ^. cY . rSize / pointRange ^. cX . rSize
+    -- TODO: can this be computed only for points in view?
     pointRange :: Coord (Range Double)
     pointRange = fmap unZero
                . foldl' (liftA2 go) (C (R 0 0) (R 0 0))
-               $ concatMap _sItems ss
+               $ ss ^.. traverse . sItems . coordMap . folded
       where
         go oldR x = R min max <*> pure x <*> oldR
 
@@ -245,36 +250,39 @@ renderSeries
     -> Series                   -- ^ Series to plot
     -> [Image]
 renderSeries dr pr Series{..} =
-    M.foldMapWithKey (\x -> foldMap (maybeToList . go . C x)) validPoints
+    M.foldMapWithKey (\x -> foldMap (maybeToList . go . C x))
+        $ validPoints pr _sItems
   where
-    validPoints :: M.Map Double (S.Set Double)
-    validPoints = fmap (setRange (pr ^. cY))
-                . mapRange (pr ^. cX)
-                $ pointMap _sItems
     go :: Coord Double -> Maybe Image
     go r = placeImage dr pr (C ACenter ACenter) r (renderPoint _sStyle)
               <$ guard (and $ within <$> r <*> pr)
 
-mapRange :: Ord k => Range k -> M.Map k a -> M.Map k a
-mapRange r m = M.unions $ m''
-                        : maybeToList (M.singleton (r ^. rMin) <$> mMin)
-                       ++ maybeToList (M.singleton (r ^. rMax) <$> mMax)
+validPoints
+    :: Ord k
+    => Coord (Range k)
+    -> M.Map k (S.Set k)
+    -> M.Map k (S.Set k)
+validPoints pr = fmap (setRange (pr ^. cY))
+               . mapRange (pr ^. cX)
   where
-    (_  , mMin, m') = M.splitLookup (r ^. rMin) m
-    (m'', mMax, _ ) = M.splitLookup (r ^. rMax) m'
+    mapRange r m = M.unions $ m''
+                            : maybeToList (M.singleton (r ^. rMin) <$> mMin)
+                           ++ maybeToList (M.singleton (r ^. rMax) <$> mMax)
+      where
+        (_  , mMin, m') = M.splitLookup (r ^. rMin) m
+        (m'', mMax, _ ) = M.splitLookup (r ^. rMax) m'
+    setRange r s = S.unions $ s''
+                            : (S.singleton (r ^. rMin) <$ guard sMin)
+                           ++ (S.singleton (r ^. rMax) <$ guard sMax)
+      where
+        (_  , sMin, s') = S.splitMember (r ^. rMin) s
+        (s'', sMax, _ ) = S.splitMember (r ^. rMax) s'
 
-setRange :: Ord a => Range a -> S.Set a -> S.Set a
-setRange r s = S.unions $ s''
-                        : (S.singleton (r ^. rMin) <$ guard sMin)
-                       ++ (S.singleton (r ^. rMax) <$ guard sMax)
-  where
-    (_  , sMin, s') = S.splitMember (r ^. rMin) s
-    (s'', sMax, _ ) = S.splitMember (r ^. rMax) s'
-
-pointMap
-    :: [Coord Double]
-    -> M.Map Double (S.Set Double)
-pointMap = M.fromListWith S.union
+toCoordMap
+    :: Ord a
+    => [Coord a]
+    -> M.Map a (S.Set a)
+toCoordMap = M.fromListWith S.union
          . map (\case C x y -> (x, S.singleton y))
 
 renderPoint
