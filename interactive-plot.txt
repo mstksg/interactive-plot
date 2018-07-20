@@ -55,6 +55,7 @@ poTermRatio :: Lens' PlotOpts Double
 poAspectRatio :: Lens' PlotOpts (Maybe Double)
 poXRange :: Lens' PlotOpts (Maybe (Range Double))
 poYRange :: Lens' PlotOpts (Maybe (Range Double))
+poRange :: Lens' PlotOpts (Maybe (Range Double), Maybe (Range Double))
 renderPlot :: Coord (Range Int) -> Coord (Range Double) -> [Series] -> [Image]
 newtype OrdColor
 OC :: Color -> OrdColor
