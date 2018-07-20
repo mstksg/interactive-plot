@@ -12,20 +12,31 @@
 module Interactive.Plot.Core
 data Coord a
 C :: a -> a -> Coord a
-[cX] :: Coord a -> a
-[cY] :: Coord a -> a
+[_cX] :: Coord a -> a
+[_cY] :: Coord a -> a
+cX :: forall a_af0E. Lens' (Coord a_af0E) a_af0E
+cY :: forall a_af0E. Lens' (Coord a_af0E) a_af0E
 data Range a
 R :: a -> a -> Range a
-[rMin] :: Range a -> a
-[rMax] :: Range a -> a
+[_rMin] :: Range a -> a
+[_rMax] :: Range a -> a
+rMin :: forall a_agRT. Lens' (Range a_agRT) a_agRT
+rMax :: forall a_agRT. Lens' (Range a_agRT) a_agRT
+rSize :: Fractional a => Lens' (Range a) a
+rMid :: Fractional a => Lens' (Range a) a
+_rSize :: Num a => Range a -> a
 data PointStyle
 PointStyle :: Char -> Color -> PointStyle
-[psMarker] :: PointStyle -> Char
-[psColor] :: PointStyle -> Color
+[_psMarker] :: PointStyle -> Char
+[_psColor] :: PointStyle -> Color
+psMarker :: Lens' PointStyle Char
+psColor :: Lens' PointStyle Color
 data Series
 Series :: [Coord Double] -> PointStyle -> Series
-[sItems] :: Series -> [Coord Double]
-[sStyle] :: Series -> PointStyle
+[_sItems] :: Series -> [Coord Double]
+[_sStyle] :: Series -> PointStyle
+sItems :: Lens' Series [Coord Double]
+sStyle :: Lens' Series PointStyle
 data Alignment
 ALeft :: Alignment
 ACenter :: Alignment
@@ -34,43 +45,47 @@ data PlotOpts
 PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> PlotOpts
 
 -- | character width ratio of terminal (H/W)
-[poTermRatio] :: PlotOpts -> Double
+[_poTermRatio] :: PlotOpts -> Double
 
 -- | plot aspect ratio (H/W)
-[poAspectRatio] :: PlotOpts -> Maybe Double
-[poXRange] :: PlotOpts -> Maybe (Range Double)
-[poYRange] :: PlotOpts -> Maybe (Range Double)
+[_poAspectRatio] :: PlotOpts -> Maybe Double
+[_poXRange] :: PlotOpts -> Maybe (Range Double)
+[_poYRange] :: PlotOpts -> Maybe (Range Double)
+poTermRatio :: Lens' PlotOpts Double
+poAspectRatio :: Lens' PlotOpts (Maybe Double)
+poXRange :: Lens' PlotOpts (Maybe (Range Double))
+poYRange :: Lens' PlotOpts (Maybe (Range Double))
 renderPlot :: Coord (Range Int) -> Coord (Range Double) -> [Series] -> [Image]
-scaleRange :: Fractional a => a -> Range a -> Range a
-rSize :: Num a => Range a -> a
 newtype OrdColor
 OC :: Color -> OrdColor
 [getOC] :: OrdColor -> Color
 plotRange :: PlotOpts -> Coord (Range Int) -> [Series] -> Coord (Range Double)
+instance Data.Default.Class.Default Interactive.Plot.Core.PlotOpts
+instance GHC.Classes.Ord Interactive.Plot.Core.PointStyle
 instance GHC.Classes.Eq Interactive.Plot.Core.PointStyle
+instance GHC.Base.Applicative Interactive.Plot.Core.Range
+instance Data.Traversable.Traversable Interactive.Plot.Core.Range
 instance Data.Foldable.Foldable Interactive.Plot.Core.Range
 instance GHC.Base.Functor Interactive.Plot.Core.Range
 instance GHC.Show.Show a => GHC.Show.Show (Interactive.Plot.Core.Range a)
+instance GHC.Num.Num a => GHC.Num.Num (Interactive.Plot.Core.Coord a)
+instance GHC.Base.Applicative Interactive.Plot.Core.Coord
+instance Data.Traversable.Traversable Interactive.Plot.Core.Coord
 instance Data.Foldable.Foldable Interactive.Plot.Core.Coord
 instance GHC.Base.Functor Interactive.Plot.Core.Coord
 instance GHC.Show.Show a => GHC.Show.Show (Interactive.Plot.Core.Coord a)
 instance GHC.Classes.Eq Interactive.Plot.Core.OrdColor
-instance Data.Default.Class.Default Interactive.Plot.Core.PlotOpts
-instance GHC.Classes.Ord Interactive.Plot.Core.PointStyle
-instance GHC.Base.Applicative Interactive.Plot.Core.Range
-instance GHC.Num.Num a => GHC.Num.Num (Interactive.Plot.Core.Coord a)
-instance GHC.Base.Applicative Interactive.Plot.Core.Coord
 instance GHC.Classes.Ord Interactive.Plot.Core.OrdColor
 
 module Interactive.Plot.Series
 data AutoPointStyle
 APS :: Maybe Char -> Maybe Color -> AutoPointStyle
-[apsMarker] :: AutoPointStyle -> Maybe Char
-[apsColor] :: AutoPointStyle -> Maybe Color
+[_apsMarker] :: AutoPointStyle -> Maybe Char
+[_apsColor] :: AutoPointStyle -> Maybe Color
 data AutoSeries
 AS :: [Coord Double] -> AutoPointStyle -> AutoSeries
-[asItems] :: AutoSeries -> [Coord Double]
-[asStyle] :: AutoSeries -> AutoPointStyle
+[_asItems] :: AutoSeries -> [Coord Double]
+[_asStyle] :: AutoSeries -> AutoPointStyle
 defaultStyles :: Set PointStyle
 fromAutoSeries :: [AutoSeries] -> [Series]
 listSeries :: [Double] -> AutoPointStyle -> AutoSeries
@@ -79,8 +94,8 @@ autoSeries :: Series -> AutoSeries
 funcSeries :: (Double -> Double) -> [Double] -> AutoPointStyle -> AutoSeries
 enumRange :: Int -> Range Double -> [Double]
 instance GHC.Show.Show Interactive.Plot.Series.AutoSeries
-instance GHC.Show.Show Interactive.Plot.Series.AutoPointStyle
 instance Data.Default.Class.Default Interactive.Plot.Series.AutoPointStyle
+instance GHC.Show.Show Interactive.Plot.Series.AutoPointStyle
 
 module Interactive.Plot.Run
 runPlot :: PlotOpts -> [Series] -> IO ()
