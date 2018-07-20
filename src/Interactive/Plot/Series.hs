@@ -17,6 +17,7 @@ module Interactive.Plot.Series (
 import           Control.Monad.Random
 import           Control.Monad.State
 import           Data.Default
+import           Data.Foldable
 import           Data.Maybe
 import           Graphics.Vty
 import           Interactive.Plot.Core
@@ -42,11 +43,11 @@ data AutoSeries = AS { _asItems :: [Coord Double]
 
 makeLenses ''AutoSeries
 
-listSeries :: [Double] -> AutoPointStyle -> AutoSeries
-listSeries xs = AS (zipWith C [0..] xs)
+listSeries :: Foldable t => t Double -> AutoPointStyle -> AutoSeries
+listSeries xs = AS (zipWith C [0..] (toList xs))
 
-tupleSeries :: [(Double, Double)] -> AutoPointStyle -> AutoSeries
-tupleSeries xs = AS (uncurry C <$> xs)
+tupleSeries :: Foldable t => t (Double, Double) -> AutoPointStyle -> AutoSeries
+tupleSeries xs = AS (uncurry C <$> toList xs)
 
 autoSeries :: Series -> AutoSeries
 autoSeries (Series xs PointStyle{..}) = AS xs $ APS (Just _psMarker) (Just _psColor)
@@ -56,8 +57,8 @@ enumRange n r = (+ r ^. rMin) . (* s) . fromIntegral <$> [0 .. (n - 1)]
   where
     s = r ^. rSize / fromIntegral (n - 1)
 
-funcSeries :: (Double -> Double) -> [Double] -> AutoPointStyle -> AutoSeries
-funcSeries f xs = tupleSeries [ (x, f x) | x <- xs ]
+funcSeries :: Foldable t => (Double -> Double) -> t Double -> AutoPointStyle -> AutoSeries
+funcSeries f xs = tupleSeries [ (x, f x) | x <- toList xs ]
 
 defaultMarkers :: S.Set Char
 defaultMarkers = S.fromList "o*+~.,=#`x-"
