@@ -149,10 +149,10 @@ plotRange PO{..} dr ss = case _poAspectRatio of
       in  case (_poXRange, _poYRange) of
             (Nothing, Nothing) -> case compare pointRangeRatio displayRatio of
               LT -> pointRange
-                      & cX . rSize .~ pointRange ^. cY . rSize / displayRatio
+                      & cY . rSize .~ pointRange ^. cX . rSize * displayRatio
               EQ -> pointRange
               GT -> pointRange
-                      & cY . rSize .~ pointRange ^. cX . rSize * displayRatio
+                      & cX . rSize .~ pointRange ^. cY . rSize / displayRatio
             (Just x , Nothing) -> pointRange
                                     & cX .~ x
                                     & cY . rSize .~ x ^. rSize * displayRatio
