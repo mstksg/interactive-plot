@@ -18,9 +18,8 @@ import           Interactive.Plot.Series
 import           Lens.Micro
 
 data PEvent = PEQuit
-            | PEZoom   Double
+            | PEZoom (Coord Double)
             | PEPan    (Coord Double)
-            | PEAspect (Coord Double)
             | PEResize (Coord Int)
             | PEReset
 
@@ -31,10 +30,10 @@ processEvent = \case
     EvKey (KChar 'q') []      -> Just PEQuit
     EvKey (KChar 'r') []      -> Just PEReset
     EvKey (KChar 'R') []      -> Just PEReset
-    EvKey (KChar '=') []      -> Just $ PEZoom (sqrt 0.5)
-    EvKey (KChar '+') []      -> Just $ PEZoom (sqrt 0.5)
-    EvKey (KChar '-') []      -> Just $ PEZoom (sqrt 2  )
-    EvKey (KChar '_') []      -> Just $ PEZoom (sqrt 2  )
+    EvKey (KChar '=') []      -> Just $ PEZoom (C (sqrt 0.5) (sqrt 0.5))
+    EvKey (KChar '+') []      -> Just $ PEZoom (C (sqrt 0.5) (sqrt 0.5))
+    EvKey (KChar '-') []      -> Just $ PEZoom (C (sqrt 2  ) (sqrt 2  ))
+    EvKey (KChar '_') []      -> Just $ PEZoom (C (sqrt 2  ) (sqrt 2  ))
     EvKey (KChar 'h') []      -> Just $ PEPan  (C (-0.2) 0     )
     EvKey (KChar 'j') []      -> Just $ PEPan  (C 0      (-0.2))
     EvKey (KChar 'k') []      -> Just $ PEPan  (C 0      0.2   )
@@ -43,10 +42,10 @@ processEvent = \case
     EvKey KDown       []      -> Just $ PEPan  (C 0      (-0.2))
     EvKey KUp         []      -> Just $ PEPan  (C 0      0.2   )
     EvKey KRight      []      -> Just $ PEPan  (C 0.2    0     )
-    EvKey (KChar 'v') []      -> Just $ PEAspect (C 1          (sqrt 2  ))
-    EvKey (KChar '^') []      -> Just $ PEAspect (C 1          (sqrt 0.5))
-    EvKey (KChar '<') []      -> Just $ PEAspect (C (sqrt 2  ) 1         )
-    EvKey (KChar '>') []      -> Just $ PEAspect (C (sqrt 0.5) 1         )
+    EvKey (KChar 'v') []      -> Just $ PEZoom (C 1          (sqrt 2  ))
+    EvKey (KChar '^') []      -> Just $ PEZoom (C 1          (sqrt 0.5))
+    EvKey (KChar '<') []      -> Just $ PEZoom (C (sqrt 2  ) 1         )
+    EvKey (KChar '>') []      -> Just $ PEZoom (C (sqrt 0.5) 1         )
     EvResize ht wd            -> Just $ PEResize (C ht wd)
     _                         -> Nothing
 
@@ -107,18 +106,14 @@ runPlot po ss = do
           shutdown vty
           pure False
         PEZoom d -> do
+          let scaler s = over rSize (* s)
           writeIORef psRef $
-            ps & psRange . traverse . rSize %~ (* d)
+            ps & psRange %~ (<*>) (scaler <$> d)
           pure True
         PEPan d -> do
           let panner s r = fmap (+ (r ^. rSize * s)) r
           writeIORef psRef $
             ps & psRange %~ (<*>) (panner <$> d)
-          pure True
-        PEAspect d -> do
-          let scaler s = fmap (* s)
-          writeIORef psRef $
-            ps & psRange %~ (<*>) (scaler <$> d)
           pure True
         PEResize newDim -> do
           let oldDim = _rSize <$> dr
