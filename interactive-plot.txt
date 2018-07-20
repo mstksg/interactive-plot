@@ -14,14 +14,14 @@ data Coord a
 C :: a -> a -> Coord a
 [_cX] :: Coord a -> a
 [_cY] :: Coord a -> a
-cX :: forall a_af3T. Lens' (Coord a_af3T) a_af3T
-cY :: forall a_af3T. Lens' (Coord a_af3T) a_af3T
+cX :: forall a_af4i. Lens' (Coord a_af4i) a_af4i
+cY :: forall a_af4i. Lens' (Coord a_af4i) a_af4i
 data Range a
 R :: a -> a -> Range a
 [_rMin] :: Range a -> a
 [_rMax] :: Range a -> a
-rMin :: forall a_agVd. Lens' (Range a_agVd) a_agVd
-rMax :: forall a_agVd. Lens' (Range a_agVd) a_agVd
+rMin :: forall a_agVC. Lens' (Range a_agVC) a_agVC
+rMax :: forall a_agVC. Lens' (Range a_agVC) a_agVC
 rSize :: Fractional a => Lens' (Range a) a
 rMid :: Fractional a => Lens' (Range a) a
 _rSize :: Num a => Range a -> a
@@ -32,11 +32,13 @@ PointStyle :: Char -> Color -> PointStyle
 psMarker :: Lens' PointStyle Char
 psColor :: Lens' PointStyle Color
 data Series
-Series :: [Coord Double] -> PointStyle -> Series
-[_sItems] :: Series -> [Coord Double]
+Series :: Map Double (Set Double) -> PointStyle -> Series
+[_sItems] :: Series -> Map Double (Set Double)
 [_sStyle] :: Series -> PointStyle
-sItems :: Lens' Series [Coord Double]
+sItems :: Lens' Series (Map Double (Set Double))
 sStyle :: Lens' Series PointStyle
+coordMap :: Ord a => Lens' (Map a (Set a)) [Coord a]
+toCoordMap :: Ord a => [Coord a] -> Map a (Set a)
 data Alignment
 ALeft :: Alignment
 ACenter :: Alignment
@@ -86,10 +88,10 @@ APS :: Maybe Char -> Maybe Color -> AutoPointStyle
 apsMarker :: Lens' AutoPointStyle (Maybe Char)
 apsColor :: Lens' AutoPointStyle (Maybe Color)
 data AutoSeries
-AS :: [Coord Double] -> AutoPointStyle -> AutoSeries
-[_asItems] :: AutoSeries -> [Coord Double]
+AS :: Map Double (Set Double) -> AutoPointStyle -> AutoSeries
+[_asItems] :: AutoSeries -> Map Double (Set Double)
 [_asStyle] :: AutoSeries -> AutoPointStyle
-asItems :: Lens' AutoSeries [Coord Double]
+asItems :: Lens' AutoSeries (Map Double (Set Double))
 asStyle :: Lens' AutoSeries AutoPointStyle
 defaultStyles :: Set PointStyle
 fromAutoSeries :: [AutoSeries] -> [Series]
