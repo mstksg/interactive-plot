@@ -14,14 +14,14 @@ data Coord a
 C :: a -> a -> Coord a
 [_cX] :: Coord a -> a
 [_cY] :: Coord a -> a
-cX :: forall a_af0E. Lens' (Coord a_af0E) a_af0E
-cY :: forall a_af0E. Lens' (Coord a_af0E) a_af0E
+cX :: forall a_af3T. Lens' (Coord a_af3T) a_af3T
+cY :: forall a_af3T. Lens' (Coord a_af3T) a_af3T
 data Range a
 R :: a -> a -> Range a
 [_rMin] :: Range a -> a
 [_rMax] :: Range a -> a
-rMin :: forall a_agRT. Lens' (Range a_agRT) a_agRT
-rMax :: forall a_agRT. Lens' (Range a_agRT) a_agRT
+rMin :: forall a_agVd. Lens' (Range a_agVd) a_agVd
+rMax :: forall a_agVd. Lens' (Range a_agVd) a_agVd
 rSize :: Fractional a => Lens' (Range a) a
 rMid :: Fractional a => Lens' (Range a) a
 _rSize :: Num a => Range a -> a
@@ -92,10 +92,10 @@ asItems :: Lens' AutoSeries [Coord Double]
 asStyle :: Lens' AutoSeries AutoPointStyle
 defaultStyles :: Set PointStyle
 fromAutoSeries :: [AutoSeries] -> [Series]
-listSeries :: [Double] -> AutoPointStyle -> AutoSeries
-tupleSeries :: [(Double, Double)] -> AutoPointStyle -> AutoSeries
+listSeries :: Foldable t => t Double -> AutoPointStyle -> AutoSeries
+tupleSeries :: Foldable t => t (Double, Double) -> AutoPointStyle -> AutoSeries
 autoSeries :: Series -> AutoSeries
-funcSeries :: (Double -> Double) -> [Double] -> AutoPointStyle -> AutoSeries
+funcSeries :: Foldable t => (Double -> Double) -> t Double -> AutoPointStyle -> AutoSeries
 enumRange :: Int -> Range Double -> [Double]
 instance GHC.Show.Show Interactive.Plot.Series.AutoSeries
 instance Data.Default.Class.Default Interactive.Plot.Series.AutoPointStyle
