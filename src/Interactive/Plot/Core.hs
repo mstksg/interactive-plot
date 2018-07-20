@@ -32,6 +32,8 @@ import           Graphics.Vty
 import           Lens.Micro
 import           Lens.Micro.TH
 import           Text.Printf
+import qualified Data.Map             as M
+import qualified Data.Set             as S
 
 newtype OrdColor = OC { getOC :: Color }
     deriving Eq
@@ -242,11 +244,38 @@ renderSeries
     -> Coord (Range Double)     -- ^ Plot axis range
     -> Series                   -- ^ Series to plot
     -> [Image]
-renderSeries dr pr Series{..} = mapMaybe go _sItems
+renderSeries dr pr Series{..} =
+    M.foldMapWithKey (\x -> foldMap (maybeToList . go . C x)) validPoints
   where
+    validPoints :: M.Map Double (S.Set Double)
+    validPoints = fmap (setRange (pr ^. cY))
+                . mapRange (pr ^. cX)
+                $ pointMap _sItems
     go :: Coord Double -> Maybe Image
     go r = placeImage dr pr (C ACenter ACenter) r (renderPoint _sStyle)
               <$ guard (and $ within <$> r <*> pr)
+
+mapRange :: Ord k => Range k -> M.Map k a -> M.Map k a
+mapRange r m = M.unions $ m''
+                        : maybeToList (M.singleton (r ^. rMin) <$> mMin)
+                       ++ maybeToList (M.singleton (r ^. rMax) <$> mMax)
+  where
+    (_  , mMin, m') = M.splitLookup (r ^. rMin) m
+    (m'', mMax, _ ) = M.splitLookup (r ^. rMax) m'
+
+setRange :: Ord a => Range a -> S.Set a -> S.Set a
+setRange r s = S.unions $ s''
+                        : (S.singleton (r ^. rMin) <$ guard sMin)
+                       ++ (S.singleton (r ^. rMax) <$ guard sMax)
+  where
+    (_  , sMin, s') = S.splitMember (r ^. rMin) s
+    (s'', sMax, _ ) = S.splitMember (r ^. rMax) s'
+
+pointMap
+    :: [Coord Double]
+    -> M.Map Double (S.Set Double)
+pointMap = M.fromListWith S.union
+         . map (\case C x y -> (x, S.singleton y))
 
 renderPoint
     :: PointStyle
