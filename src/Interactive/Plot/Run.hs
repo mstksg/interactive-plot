@@ -1,5 +1,6 @@
-{-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE LambdaCase    #-}
+{-# LANGUAGE ApplicativeDo   #-}
+{-# LANGUAGE LambdaCase      #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Interactive.Plot.Run (
     runPlot
@@ -8,13 +9,16 @@ module Interactive.Plot.Run (
 
 import           Control.Applicative
 import           Control.Concurrent
-import           Interactive.Plot.Series
 import           Control.Monad
 import           Control.Monad.Trans.Maybe
 import           Data.Foldable
 import           Data.IORef
 import           Graphics.Vty
 import           Interactive.Plot.Core
+import           Interactive.Plot.Series
+import           Lens.Micro
+import           Lens.Micro.Extras
+import           Lens.Micro.TH
 
 data PEvent = PEQuit
             | PEZoom   Double
@@ -45,9 +49,11 @@ processEvent = \case
     _                         -> Nothing
 
 data PlotState = PlotState
-    { psRange    :: Coord (Range Double)
-    , psSerieses :: [Series]
+    { _psRange    :: Coord (Range Double)
+    , _psSerieses :: [Series]
     }
+
+makeLenses ''PlotState
 
 displayRange :: Output -> IO (Coord (Range Int))
 displayRange o = do
@@ -77,8 +83,8 @@ runPlot po ss = do
     initPS :: Vty -> IO PlotState
     initPS vty = do
       dr    <- displayRange $ outputIface vty
-      pure PlotState { psRange    = plotRange po dr ss
-                     , psSerieses = ss
+      pure PlotState { _psRange    = plotRange po dr ss
+                     , _psSerieses = ss
                      }
     plotLoop
         :: Vty
@@ -89,7 +95,7 @@ runPlot po ss = do
     plotLoop vty peChan psRef tPE = do
       dr      <- displayRange $ outputIface vty
       ps      <- readIORef psRef
-      let imgs = renderPlot dr (psRange ps) (psSerieses ps)
+      let imgs = renderPlot dr (_psRange ps) (_psSerieses ps)
 
       update vty $ picForLayers imgs
       readChan peChan >>= \case
@@ -99,21 +105,22 @@ runPlot po ss = do
           pure False
         PEZoom d -> do
           writeIORef psRef $
-            ps { psRange = scaleRange d <$> psRange ps }
+            ps & psRange . traverse . rSize %~ (* d)
           pure True
         PEPan d -> do
+          let panner s r = fmap (+ (r ^. rSize * s)) r
           writeIORef psRef $
-            ps { psRange = (\s r -> fmap (+ (rSize r * s)) r) <$> d <*> psRange ps }
+            ps & psRange %~ (<*>) (panner <$> d)
           pure True
         PEResize newDim -> do
-          let oldDim = rSize <$> dr
+          let oldDim = _rSize <$> dr
               newRange = do
                 d0 <- oldDim
                 d1 <- newDim
-                r0 <- psRange ps
-                pure $ scaleRange (fromIntegral d1 / fromIntegral d0) r0
+                r0 <- _psRange ps
+                pure $ r0 & rSize %~ (* (fromIntegral d1 / fromIntegral d0))
           writeIORef psRef $
-            ps { psRange = newRange }
+            ps & psRange .~ newRange
           pure True
         PEReset -> do
           writeIORef psRef =<< initPS vty

@@ -1,23 +1,33 @@
-{-# LANGUAGE ApplicativeDo   #-}
-{-# LANGUAGE DeriveFoldable  #-}
-{-# LANGUAGE DeriveFunctor   #-}
-{-# LANGUAGE LambdaCase      #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ApplicativeDo     #-}
+{-# LANGUAGE DeriveFoldable    #-}
+{-# LANGUAGE DeriveFunctor     #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE PatternSynonyms   #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Interactive.Plot.Core (
-    Coord(..), Range(..), PointStyle(..), Series(..), Alignment(..), PlotOpts(..)
+    Coord(..), cX, cY
+  , Range(.., R2), rMin, rMax, rSize, rMid, _rSize
+  , PointStyle(..), psMarker, psColor
+  , Series(..), sItems, sStyle
+  , Alignment(..)
+  , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange
   , renderPlot
-  , scaleRange, rSize
   , OrdColor(..)
   , plotRange
   ) where
 
 import           Control.Applicative
+import           Data.Coerce
 import           Data.Default
 import           Data.Foldable
 import           Data.Functor.Compose
-import           Data.Coerce
 import           Graphics.Vty
+import           Lens.Micro
+import           Lens.Micro.TH
 import           Text.Printf
 
 newtype OrdColor = OC { getOC :: Color }
@@ -34,11 +44,12 @@ instance Ord OrdColor where
             ISOColor _ -> GT
             Color240 d -> compare c d
 
-
-data Coord a = C { cX :: a
-                 , cY :: a
+data Coord a = C { _cX :: a
+                 , _cY :: a
                  }
-  deriving (Show, Functor, Foldable)
+  deriving (Show, Functor, Foldable, Traversable)
+
+makeLenses ''Coord
 
 instance Num a => Num (Coord a) where
     (+) = liftA2 (+)
@@ -53,22 +64,23 @@ instance Applicative Coord where
     pure x = C x x
     C f g <*> C x y = C (f x) (g y)
 
-data Range a = R { rMin :: a
-                 , rMax :: a
+data Range a = R { _rMin :: a
+                 , _rMax :: a
                  }
-  deriving (Show, Functor, Foldable)
+  deriving (Show, Functor, Foldable, Traversable)
+
+makeLenses ''Range
 
 instance Applicative Range where
     pure x = R x x
     R f g <*> R x y = R (f x) (g y)
 
-rSize :: Num a => Range a -> a
-rSize R{..} = rMax - rMin
-
-data PointStyle = PointStyle { psMarker :: Char
-                             , psColor  :: Color
+data PointStyle = PointStyle { _psMarker :: Char
+                             , _psColor  :: Color
                              }
   deriving (Eq)
+
+makeLenses ''PointStyle
 
 instance Ord PointStyle where
     compare (PointStyle m1 c1) (PointStyle m2 c2)
@@ -82,71 +94,88 @@ instance Ord PointStyle where
             ISOColor _ -> GT
             Color240 d -> compare c d
 
-data Series = Series { sItems :: [Coord Double]
-                     , sStyle :: PointStyle
+data Series = Series { _sItems :: [Coord Double]
+                     , _sStyle :: PointStyle
                      }
+
+makeLenses ''Series
 
 data Alignment = ALeft
                | ACenter
                | ARight
 
--- data RangeRatio = RR { -- | Where on the screen (0 to 1) to place the other axis
---                        rrZero  :: Double
---                        -- | Ratio of height of a terminal character to width
---                      , rrRatio :: Double
---                      }
---                 deriving (Show)
-
-data PlotOpts = PO { poTermRatio   :: Double            -- ^ character width ratio of terminal (H/W)
-                   , poAspectRatio :: Maybe Double      -- ^ plot aspect ratio (H/W)
-                   , poXRange      :: Maybe (Range Double)
-                   , poYRange      :: Maybe (Range Double)
+data PlotOpts = PO { _poTermRatio   :: Double            -- ^ character width ratio of terminal (H/W)
+                   , _poAspectRatio :: Maybe Double      -- ^ plot aspect ratio (H/W)
+                   , _poXRange      :: Maybe (Range Double)
+                   , _poYRange      :: Maybe (Range Double)
                    }
 
+makeLenses ''PlotOpts
+
 instance Default PlotOpts where
-    def = PO { poTermRatio   = 2.1
-             , poAspectRatio = Just 1
-             , poXRange      = Nothing
-             , poYRange      = Nothing
+    def = PO { _poTermRatio   = 2.1
+             , _poAspectRatio = Just 1
+             , _poXRange      = Nothing
+             , _poYRange      = Nothing
              }
 
+pattern R2 :: Fractional a => a -> a -> Range a
+pattern R2 rM rS <- (\case R{..} -> ((_rMin + _rMax) / 2, _rMax - _rMin)->(rM, rS))
+  where
+    R2 rM rS = R (rM - rS2) (rM + rS2)
+      where
+        rS2 = rS / 2
+{-# COMPLETE R2 #-}
+
+_rSize :: Num a => Range a -> a
+_rSize R{..} = _rMax - _rMin
+
+rSize :: Fractional a => Lens' (Range a) a
+rSize f (R2 m s) = R2 m <$> f s
+
+rMid :: Fractional a => Lens' (Range a) a
+rMid f (R2 m s) = (`R2` s) <$> f m
 
 plotRange
     :: PlotOpts
     -> Coord (Range Int)      -- ^ display region
     -> [Series]               -- ^ Points
     -> Coord (Range Double)   -- ^ actual plot axis range
-plotRange PO{..} dr ss = case poAspectRatio of
+plotRange PO{..} dr ss = case _poAspectRatio of
     Just rA ->
-      let displayRatio = fromIntegral (rSize (cY dr))
-                       / (fromIntegral (rSize (cX dr)) * poTermRatio)
+      let displayRatio = fromIntegral (dr ^. cY . to _rSize)
+                       / (fromIntegral (dr ^. cX . to _rSize) / _poTermRatio)
                        * rA
-      in  case (poXRange, poYRange) of
+      in  case (_poXRange, _poYRange) of
             (Nothing, Nothing) -> case compare pointRangeRatio displayRatio of
-              LT -> C (setRangeSize (rSize (cY pointRange) / displayRatio) (cX pointRange))
-                      (cY pointRange)
+              LT -> pointRange
+                      & cX . rSize .~ pointRange ^. cY . rSize / displayRatio
               EQ -> pointRange
-              GT -> C (cX pointRange)
-                      (setRangeSize (rSize (cX pointRange) * displayRatio) (cY pointRange))
-            (Just x , Nothing) -> C x (setRangeSize (rSize x * displayRatio) $ cY pointRange)
-            (Nothing, Just y ) -> C (setRangeSize (rSize y / displayRatio) $ cX pointRange) y
+              GT -> pointRange
+                      & cY . rSize .~ pointRange ^. cX . rSize * displayRatio
+            (Just x , Nothing) -> pointRange
+                                    & cX .~ x
+                                    & cY . rSize .~ x ^. rSize * displayRatio
+            (Nothing, Just y ) -> pointRange
+                                    & cX . rSize .~ y ^. rSize / displayRatio
+                                    & cY .~ y
             (Just x , Just y ) -> C x y
-    Nothing -> case (poXRange, poYRange) of
+    Nothing -> case (_poXRange, _poYRange) of
       (Nothing, Nothing) -> pointRange
-      (Just x , Nothing) -> C x (cY pointRange)
-      (Nothing, Just y ) -> C (cX pointRange) y
+      (Just x , Nothing) -> pointRange & cX .~ x
+      (Nothing, Just y ) -> pointRange & cY .~ y
       (Just x , Just y ) -> C x y
   where
     unZero :: Range Double -> Range Double
     unZero r
-      | rSize r == 0 = R (subtract 1) (+ 1) <*> r
-      | otherwise    = r
+      | r ^. rSize == 0 = R (subtract 1) (+ 1) <*> r
+      | otherwise       = r
     pointRangeRatio :: Double
-    pointRangeRatio = rSize (cY pointRange) / rSize (cX pointRange)
+    pointRangeRatio = pointRange ^. cY . rSize / pointRange ^. cX . rSize
     pointRange :: Coord (Range Double)
     pointRange = fmap unZero
                . foldl' (liftA2 go) (C (R 0 0) (R 0 0))
-               $ concatMap sItems ss
+               $ concatMap _sItems ss
       where
         go oldR x = R min max <*> pure x <*> oldR
 
@@ -167,10 +196,10 @@ overlayAxis dr pr is = foldMap toList axisBounds ++ is ++ axisLines
   where
     origin = placeImage dr pr (C ACenter ACenter) (C 0 0) $
                 char defAttr '+'
-    xAxis  = placeImage dr pr (C ALeft   ACenter) (C (rMin (cX pr)) 0             ) $
-                charFill defAttr '-' (rSize (cX dr)) 1
-    yAxis  = placeImage dr pr (C ACenter ALeft  ) (C 0              (rMax (cY pr))) $
-                charFill defAttr '|' 1               (rSize (cY dr))
+    xAxis  = placeImage dr pr (C ALeft   ACenter) (C (pr ^. cX . rMin) 0                ) $
+                charFill defAttr '-' (dr ^. cX . to _rSize) 1
+    yAxis  = placeImage dr pr (C ACenter ALeft  ) (C 0                 (pr ^. cY . rMax)) $
+                charFill defAttr '|' 1                  (dr ^. cY . to _rSize)
     axisLines = [origin, xAxis, yAxis]
     axisBounds :: Coord (Range Image)
     axisBounds = getCompose $ do
@@ -188,7 +217,7 @@ placeImage
     -> Coord Double             -- ^ Position in plot space
     -> Image                    -- ^ Image to place
     -> Image
-placeImage dr pr (C aX aY) r i = translate x' (rSize (cY dr) - y') i
+placeImage dr pr (C aX aY) r i = translate x' (dr ^. cY . to _rSize - y') i
   where
     dr' = (fmap . fmap) fromIntegral dr
     scaled  = lerp <$> pr <*> dr' <*> r
@@ -206,29 +235,19 @@ lerp
     -> a
     -> a
 lerp rOld rNew x =
-    rMin rNew + (x - rMin rOld) / rSize rOld * rSize rNew
-
-scaleRange :: Fractional a => a -> Range a -> Range a
-scaleRange x r = lerp unit r . (* x) . lerp r unit <$> r
-  where
-    unit = R (-1) 1
-
-setRangeSize :: Fractional a => a -> Range a -> Range a
-setRangeSize x r = lerp unit r <$> R (-x/2) (x/2)
-  where
-    unit = R (-1) 1
+    rNew ^. rMin + (x - rOld ^. rMin) / (rOld ^. rSize) * (rNew ^. rSize)
 
 renderSeries
     :: Coord (Range Int)        -- ^ Display region
     -> Coord (Range Double)     -- ^ Plot axis range
     -> Series                   -- ^ Series to plot
     -> [Image]
-renderSeries dr pr Series{..} = map go sItems
+renderSeries dr pr Series{..} = map go _sItems
   where
     go :: Coord Double -> Image
-    go r = placeImage dr pr (C ACenter ACenter) r $ renderPoint sStyle
+    go r = placeImage dr pr (C ACenter ACenter) r $ renderPoint _sStyle
 
 renderPoint
     :: PointStyle
     -> Image
-renderPoint PointStyle{..} = char (defAttr `withForeColor` psColor) psMarker
+renderPoint PointStyle{..} = char (defAttr `withForeColor` _psColor) _psMarker

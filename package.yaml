@@ -28,6 +28,7 @@ dependencies:
 - mtl
 - microlens
 - microlens-platform
+- microlens-th
 - data-default
 
 ghc-options:

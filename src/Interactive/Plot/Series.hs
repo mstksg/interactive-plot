@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards  #-}
+{-# LANGUAGE TemplateHaskell  #-}
 
 module Interactive.Plot.Series (
     AutoPointStyle(..)
@@ -19,21 +20,27 @@ import           Data.Default
 import           Data.Maybe
 import           Graphics.Vty
 import           Interactive.Plot.Core
+import           Lens.Micro
+import           Lens.Micro.TH
 import qualified Data.Set              as S
 
 data AutoPointStyle = APS
-    { apsMarker :: Maybe Char
-    , apsColor  :: Maybe Color
+    { _apsMarker :: Maybe Char
+    , _apsColor  :: Maybe Color
     }
   deriving Show
+
+makeLenses ''AutoPointStyle
 
 instance Default AutoPointStyle where
     def = APS Nothing Nothing
 
-data AutoSeries = AS { asItems :: [Coord Double]
-                     , asStyle :: AutoPointStyle
+data AutoSeries = AS { _asItems :: [Coord Double]
+                     , _asStyle :: AutoPointStyle
                      }
   deriving Show
+
+makeLenses ''AutoSeries
 
 listSeries :: [Double] -> AutoPointStyle -> AutoSeries
 listSeries xs = AS (zipWith C [0..] xs)
@@ -42,12 +49,12 @@ tupleSeries :: [(Double, Double)] -> AutoPointStyle -> AutoSeries
 tupleSeries xs = AS (uncurry C <$> xs)
 
 autoSeries :: Series -> AutoSeries
-autoSeries (Series xs PointStyle{..}) = AS xs $ APS (Just psMarker) (Just psColor)
+autoSeries (Series xs PointStyle{..}) = AS xs $ APS (Just _psMarker) (Just _psColor)
 
 enumRange :: Int -> Range Double -> [Double]
-enumRange n r = (+ rMin r) . (* s) . fromIntegral <$> [0 .. (n - 1)]
+enumRange n r = (+ r ^. rMin) . (* s) . fromIntegral <$> [0 .. (n - 1)]
   where
-    s = rSize r / fromIntegral (n - 1)
+    s = r ^. rSize / fromIntegral (n - 1)
 
 funcSeries :: (Double -> Double) -> [Double] -> AutoPointStyle -> AutoSeries
 funcSeries f xs = tupleSeries [ (x, f x) | x <- xs ]
