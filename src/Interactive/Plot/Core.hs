@@ -5,7 +5,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Interactive.Plot.Core (
-    Coord(..), Range(..), PointStyle(..), Series(..), Alignment(..), PlotOpts
+    Coord(..), Range(..), PointStyle(..), Series(..), Alignment(..), PlotOpts(..)
   , renderPlot
   , scaleRange, rSize
   , OrdColor(..)
@@ -97,33 +97,52 @@ data Alignment = ALeft
 --                      }
 --                 deriving (Show)
 
-data PlotOpts = PO { poRatio :: Double      -- ^ character width ratio (height to width)
+data PlotOpts = PO { poTermRatio   :: Double            -- ^ character width ratio of terminal (H/W)
+                   , poAspectRatio :: Maybe Double      -- ^ plot aspect ratio (H/W)
+                   , poXRange      :: Maybe (Range Double)
+                   , poYRange      :: Maybe (Range Double)
                    }
 
 instance Default PlotOpts where
-    def = PO { poRatio = 2.1
+    def = PO { poTermRatio   = 2.1
+             , poAspectRatio = Just 1
+             , poXRange      = Nothing
+             , poYRange      = Nothing
              }
 
 
 plotRange
     :: PlotOpts
     -> Coord (Range Int)      -- ^ display region
-    -> Maybe (Range Double)   -- ^ X range
-    -> Maybe (Range Double)   -- ^ Y range
     -> [Series]               -- ^ Points
     -> Coord (Range Double)   -- ^ actual plot axis range
-plotRange PO{..} dr rX rY ss = case (rX, rY) of
-    (Nothing, Nothing) -> pointRange
-    (Just x , Nothing) -> C x (setRangeSize (rSize x * displayRatio) $ cY pointRange)
-    (Nothing, Just y ) -> C (setRangeSize (rSize y / displayRatio) $ cX pointRange) y
-    (Just x , Just y ) -> C x y
+plotRange PO{..} dr ss = case poAspectRatio of
+    Just rA ->
+      let displayRatio = fromIntegral (rSize (cY dr))
+                       / (fromIntegral (rSize (cX dr)) * poTermRatio)
+                       * rA
+      in  case (poXRange, poYRange) of
+            (Nothing, Nothing) -> case compare pointRangeRatio displayRatio of
+              LT -> C (setRangeSize (rSize (cY pointRange) / displayRatio) (cX pointRange))
+                      (cY pointRange)
+              EQ -> pointRange
+              GT -> C (cX pointRange)
+                      (setRangeSize (rSize (cX pointRange) * displayRatio) (cY pointRange))
+            (Just x , Nothing) -> C x (setRangeSize (rSize x * displayRatio) $ cY pointRange)
+            (Nothing, Just y ) -> C (setRangeSize (rSize y / displayRatio) $ cX pointRange) y
+            (Just x , Just y ) -> C x y
+    Nothing -> case (poXRange, poYRange) of
+      (Nothing, Nothing) -> pointRange
+      (Just x , Nothing) -> C x (cY pointRange)
+      (Nothing, Just y ) -> C (cX pointRange) y
+      (Just x , Just y ) -> C x y
   where
-    displayRatio = fromIntegral (rSize (cY dr))
-                 / (fromIntegral (rSize (cX dr)) * poRatio)
     unZero :: Range Double -> Range Double
     unZero r
       | rSize r == 0 = R (subtract 1) (+ 1) <*> r
       | otherwise    = r
+    pointRangeRatio :: Double
+    pointRangeRatio = rSize (cY pointRange) / rSize (cX pointRange)
     pointRange :: Coord (Range Double)
     pointRange = fmap unZero
                . foldl' (liftA2 go) (C (R 0 0) (R 0 0))
@@ -136,14 +155,15 @@ renderPlot
     -> Coord (Range Double)     -- ^ plot axis range
     -> [Series]
     -> [Image]
-renderPlot dr pr ss = concatMap (renderSeries dr pr) ss
-                   ++ renderAxis dr pr
+renderPlot dr pr = overlayAxis dr pr
+                 . concatMap (renderSeries dr pr)
 
-renderAxis
+overlayAxis
     :: Coord (Range Int)        -- ^ display region
     -> Coord (Range Double)     -- ^ plot axis range
+    -> [Image]                  -- ^ thing to overlay over
     -> [Image]
-renderAxis dr pr = foldMap toList axisBounds ++ axisLines
+overlayAxis dr pr is = foldMap toList axisBounds ++ is ++ axisLines
   where
     origin = placeImage dr pr (C ACenter ACenter) (C 0 0) $
                 char defAttr '+'

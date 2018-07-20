@@ -3,10 +3,12 @@
 
 module Interactive.Plot.Run (
     runPlot
+  , runPlotAuto
   ) where
 
 import           Control.Applicative
 import           Control.Concurrent
+import           Interactive.Plot.Series
 import           Control.Monad
 import           Control.Monad.Trans.Maybe
 import           Data.Foldable
@@ -26,6 +28,7 @@ processEvent = \case
     EvKey (KChar 'c') [MCtrl] -> Just PEQuit
     EvKey (KChar 'q') []      -> Just PEQuit
     EvKey (KChar 'r') []      -> Just PEReset
+    EvKey (KChar 'R') []      -> Just PEReset
     EvKey (KChar '=') []      -> Just $ PEZoom (sqrt 0.5)
     EvKey (KChar '+') []      -> Just $ PEZoom (sqrt 0.5)
     EvKey (KChar '-') []      -> Just $ PEZoom (sqrt 2)
@@ -51,13 +54,17 @@ displayRange o = do
     (wd, ht) <- displayBounds o
     pure $ C (R 0 wd) (R 0 ht)
 
+runPlotAuto
+    :: PlotOpts
+    -> [AutoSeries]
+    -> IO ()
+runPlotAuto po = runPlot po . fromAutoSeries
+
 runPlot
     :: PlotOpts
-    -> Maybe (Range Double)     -- ^ x range
-    -> Maybe (Range Double)     -- ^ y range
     -> [Series]
     -> IO ()
-runPlot po rX rY ss = do
+runPlot po ss = do
     vty   <- mkVty =<< standardIOConfig
     psRef <- newIORef =<< initPS vty
     peChan <- newChan
@@ -70,7 +77,7 @@ runPlot po rX rY ss = do
     initPS :: Vty -> IO PlotState
     initPS vty = do
       dr    <- displayRange $ outputIface vty
-      pure PlotState { psRange    = plotRange po dr rX rY ss
+      pure PlotState { psRange    = plotRange po dr ss
                      , psSerieses = ss
                      }
     plotLoop
