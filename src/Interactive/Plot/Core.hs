@@ -14,7 +14,7 @@ module Interactive.Plot.Core (
   , PointStyle(..), psMarker, psColor
   , Series(..), sItems, sStyle
   , Alignment(..)
-  , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange
+  , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange, poRange
   , renderPlot
   , OrdColor(..)
   , plotRange
@@ -132,6 +132,9 @@ rMid f (R2 m s) = (`R2` s) <$> f m
 
 within :: Ord a => a -> Range a -> Bool
 within x r = x >= r ^. rMin && x <= r ^. rMax
+
+poRange :: Lens' PlotOpts (Maybe (Range Double), Maybe (Range Double))
+poRange f (PO r a x y) = uncurry (PO r a) <$> f (x, y)
 
 plotRange
     :: PlotOpts
