@@ -6,5 +6,5 @@ Simple terminal interactive plotter.
 Todo
 ----
 
-*   Display controls on-screen
+*   Display title
 *   Allow for changing of plot dynamically

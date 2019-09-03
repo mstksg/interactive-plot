@@ -32,7 +32,7 @@ module Interactive.Plot.Core (
   , PointStyle, pattern PointStyle, _psMarker, _psColor, PointStyleF(..), AutoPointStyle, psMarker, psColor
   , Series, SeriesF(..), AutoSeries, sItems, sStyle, toCoordMap, fromCoordMap
   , Alignment(..)
-  , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange, poRange, poAutoMethod
+  , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange, poRange, poAutoMethod, poHelp
   , defaultPlotOpts
   , renderPlot
   -- * Internal
@@ -255,6 +255,7 @@ data PlotOpts = PO
                                              -- 'Interactive.Plot.Run.runPlot'.
                                              -- Default is an arbitrarily
                                              -- selected seed.
+    , _poHelp        :: Bool                 -- ^ Whether or not to show help box initially.  Box can always be toggled with @?@. (Default is 'True')
     }
 
 makeLenses ''PlotOpts
@@ -267,6 +268,7 @@ defaultPlotOpts = PO
     , _poXRange      = Nothing
     , _poYRange      = Nothing
     , _poAutoMethod  = Just $ mkStdGen 28922710942259
+    , _poHelp        = True
     }
 
 instance Default PlotOpts where
@@ -320,7 +322,7 @@ within x r = x >= r ^. rMin && x <= r ^. rMax
 
 -- | Lens into a 'PlotOpts' getting its range X and range Y settings.
 poRange :: Lens' PlotOpts (Maybe (Range Double), Maybe (Range Double))
-poRange f (PO r a x y s) = (\(x', y') -> PO r a x' y' s) <$> f (x, y)
+poRange f (PO r a x y s h) = (\(x', y') -> PO r a x' y' s h) <$> f (x, y)
 
 -- | Compute plot axis ranges based on a list of points and the size of the
 -- display region.

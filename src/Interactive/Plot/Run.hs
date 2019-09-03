@@ -1,5 +1,6 @@
 {-# LANGUAGE ApplicativeDo   #-}
 {-# LANGUAGE LambdaCase      #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- |
 -- Module      : Interative.Plot.Run
@@ -26,11 +27,13 @@ import           Graphics.Vty
 import           Interactive.Plot.Core
 import           Interactive.Plot.Series
 import           Lens.Micro
+import           Lens.Micro.TH
 
 data PEvent = PEQuit
             | PEZoom (Coord Double)
             | PEPan    (Coord Double)
             | PEResize (Coord Int)
+            | PEHelp
             | PEReset
 
 processEvent :: Event -> Maybe PEvent
@@ -48,6 +51,10 @@ processEvent = \case
     EvKey (KChar 'j') []      -> Just $ PEPan  (C 0      (-0.2))
     EvKey (KChar 'k') []      -> Just $ PEPan  (C 0      0.2   )
     EvKey (KChar 'l') []      -> Just $ PEPan  (C 0.2    0     )
+    EvKey (KChar 'w') []      -> Just $ PEPan  (C (-0.2) 0     )
+    EvKey (KChar 'a') []      -> Just $ PEPan  (C 0      (-0.2))
+    EvKey (KChar 's') []      -> Just $ PEPan  (C 0      0.2   )
+    EvKey (KChar 'd') []      -> Just $ PEPan  (C 0.2    0     )
     EvKey KLeft       []      -> Just $ PEPan  (C (-0.2) 0     )
     EvKey KDown       []      -> Just $ PEPan  (C 0      (-0.2))
     EvKey KUp         []      -> Just $ PEPan  (C 0      0.2   )
@@ -56,16 +63,18 @@ processEvent = \case
     EvKey (KChar '^') []      -> Just $ PEZoom (C 1          (sqrt 0.5))
     EvKey (KChar '<') []      -> Just $ PEZoom (C (sqrt 2  ) 1         )
     EvKey (KChar '>') []      -> Just $ PEZoom (C (sqrt 0.5) 1         )
+    EvKey (KChar '?') []      -> Just $ PEHelp
+    EvKey (KChar '/') []      -> Just $ PEHelp
     EvResize ht wd            -> Just $ PEResize (C ht wd)
     _                         -> Nothing
 
 data PlotState = PlotState
     { _psRange    :: Coord (Range Double)
     , _psSerieses :: [Series]
+    , _psHelp     :: Bool
     }
 
-psRange :: Lens' PlotState (Coord (Range Double))
-psRange f (PlotState r s) = (`PlotState` s) <$> f r
+makeClassy ''PlotState
 
 displayRange :: Output -> IO (Coord (Range Int))
 displayRange o = do
@@ -101,6 +110,7 @@ runPlot po ss = do
       dr    <- displayRange $ outputIface vty
       pure PlotState { _psRange    = plotRange po dr ss
                      , _psSerieses = ss
+                     , _psHelp     = po ^. poHelp
                      }
     plotLoop
         :: Vty
@@ -111,7 +121,10 @@ runPlot po ss = do
     plotLoop vty peChan psRef tPE = do
       dr      <- displayRange $ outputIface vty
       ps      <- readIORef psRef
-      let imgs = renderPlot dr (_psRange ps) (_psSerieses ps)
+      let displayHelp
+            | ps ^. psHelp = (box helpBox :)
+            | otherwise    = id
+          imgs = displayHelp $ renderPlot dr (_psRange ps) (_psSerieses ps)
 
       update vty $ picForLayers imgs
       readChan peChan >>= \case
@@ -139,6 +152,38 @@ runPlot po ss = do
           writeIORef psRef $
             ps & psRange .~ newRange
           pure True
+        PEHelp -> do
+          writeIORef psRef $
+            ps & psHelp %~ not
+          pure True
         PEReset -> do
           writeIORef psRef =<< initPS vty
           pure True
+
+helpText :: [(String, String)]
+helpText =
+    [ ("-/+"   , "zoom")
+    , ("arrows", "pan")
+    , ("v/^"   , "vert stretch")
+    , ("</>"   , "horiz stretch")
+    , ("r"     , "reset")
+    , ("?"     , "disp help")
+    , ("q"     , "quit")
+    ]
+
+helpBox :: Image
+helpBox =       vertCat (string defAttr . (++ " ") <$> x)
+    `horizJoin` vertCat (string defAttr <$> y)
+  where
+    (x,y) = unzip helpText
+
+box :: Image -> Image
+box i = vertCat . map horizCat $
+    [ [c , tb, c ]
+    , [lr, i , lr]
+    , [c , tb, c ]
+    ]
+  where
+    lr = charFill defAttr '|' 1 (imageHeight i)
+    tb = charFill defAttr '-' (imageWidth i) 1
+    c  = char defAttr '+'
