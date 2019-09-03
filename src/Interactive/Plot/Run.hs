@@ -84,6 +84,7 @@ displayRange o = do
     (wd, ht) <- displayBounds o
     pure $ C (R 0 wd) (R 0 ht)
 
+-- | Dynamically adjustable plot data.
 data PlotData = PlotData
     { _pdTitle    :: Maybe String
     , _pdSerieses :: [Series]
@@ -91,6 +92,7 @@ data PlotData = PlotData
 
 makeLenses ''PlotData
 
+-- | Display fixed plot and title interactively, filling in default values.
 runPlotAuto
     :: PlotOpts
     -> Maybe String     -- ^ title
@@ -100,17 +102,21 @@ runPlotAuto po t s = case po ^. poAutoMethod of
     Nothing -> runPlot po t =<< fromAutoSeriesIO s
     Just g  -> runPlot po t $ fromAutoSeries_ g s
 
+-- | Display fixed plot and title interactively.
 runPlot
     :: PlotOpts
     -> Maybe String     -- ^ title
     -> [Series]         -- ^ series data
     -> IO ()
-runPlot po t s = runPlotDynamic po . readIORef =<< newIORef (PlotData t s)
+runPlot po t s = runPlotDynamic po (pure (PlotData t s))
 
--- | Interactively plot serieses in the terminal.
+-- | Version of 'runPlot' that allows you to vary the plotted data and the
+-- title.  It will execute the @'IO' PlotData@ to get the current plot
+-- data; you can use this with i.e. an 'IORef' to adjust the data in
+-- real-time.
 runPlotDynamic
     :: PlotOpts
-    -> IO PlotData
+    -> IO PlotData    -- ^ action to "get" the plot data every frame
     -> IO ()
 runPlotDynamic po ssRef = do
     vty   <- mkVty =<< standardIOConfig
