@@ -323,11 +323,20 @@ enumRange :: Fractional a => Int -> Range a -> [a]
 
 -- | Run plots interactively in the terminal.
 module Interactive.Plot.Run
+
+-- | Display fixed plot and title interactively.
 runPlot :: PlotOpts -> Maybe String -> [Series] -> IO ()
+
+-- | Display fixed plot and title interactively, filling in default values.
 runPlotAuto :: PlotOpts -> Maybe String -> [AutoSeries] -> IO ()
 
--- | Interactively plot serieses in the terminal.
+-- | Version of <a>runPlot</a> that allows you to vary the plotted data and
+--   the title. It will execute the <tt><a>IO</a> PlotData</tt> to get the
+--   current plot data; you can use this with i.e. an <a>IORef</a> to
+--   adjust the data in real-time.
 runPlotDynamic :: PlotOpts -> IO PlotData -> IO ()
+
+-- | Dynamically adjustable plot data.
 data PlotData
 PlotData :: Maybe String -> [Series] -> PlotData
 [_pdTitle] :: PlotData -> Maybe String
