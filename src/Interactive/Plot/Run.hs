@@ -1,6 +1,8 @@
 {-# LANGUAGE ApplicativeDo   #-}
 {-# LANGUAGE LambdaCase      #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ViewPatterns    #-}
 
 -- |
 -- Module      : Interative.Plot.Run
@@ -15,6 +17,8 @@
 module Interactive.Plot.Run (
     runPlot
   , runPlotAuto
+  , runPlotDynamic
+  , PlotData(..), pdTitle, pdSerieses
   ) where
 
 import           Control.Applicative
@@ -70,7 +74,6 @@ processEvent = \case
 
 data PlotState = PlotState
     { _psRange    :: Coord (Range Double)
-    , _psSerieses :: [Series]
     , _psHelp     :: Bool
     }
 
@@ -81,21 +84,35 @@ displayRange o = do
     (wd, ht) <- displayBounds o
     pure $ C (R 0 wd) (R 0 ht)
 
--- | Interactively plot auto-serieses in the terminal.
+data PlotData = PlotData
+    { _pdTitle    :: Maybe String
+    , _pdSerieses :: [Series]
+    }
+
+makeLenses ''PlotData
+
 runPlotAuto
     :: PlotOpts
-    -> [AutoSeries]
+    -> Maybe String     -- ^ title
+    -> [AutoSeries]     -- ^ uninitialized series data
     -> IO ()
-runPlotAuto po s = case po ^. poAutoMethod of
-    Nothing -> runPlot po =<< fromAutoSeriesIO s
-    Just g  -> runPlot po (fromAutoSeries_ g s)
+runPlotAuto po t s = case po ^. poAutoMethod of
+    Nothing -> runPlot po t =<< fromAutoSeriesIO s
+    Just g  -> runPlot po t $ fromAutoSeries_ g s
 
--- | Interactively plot serieses in the terminal.
 runPlot
     :: PlotOpts
-    -> [Series]
+    -> Maybe String     -- ^ title
+    -> [Series]         -- ^ series data
     -> IO ()
-runPlot po ss = do
+runPlot po t s = runPlotDynamic po . readIORef =<< newIORef (PlotData t s)
+
+-- | Interactively plot serieses in the terminal.
+runPlotDynamic
+    :: PlotOpts
+    -> IO PlotData
+    -> IO ()
+runPlotDynamic po ssRef = do
     vty   <- mkVty =<< standardIOConfig
     psRef <- newIORef =<< initPS vty
     peChan <- newChan
@@ -108,8 +125,8 @@ runPlot po ss = do
     initPS :: Vty -> IO PlotState
     initPS vty = do
       dr    <- displayRange $ outputIface vty
-      pure PlotState { _psRange    = plotRange po dr ss
-                     , _psSerieses = ss
+      PlotData{..} <- ssRef
+      pure PlotState { _psRange    = plotRange po dr _pdSerieses
                      , _psHelp     = po ^. poHelp
                      }
     plotLoop
@@ -119,12 +136,15 @@ runPlot po ss = do
         -> ThreadId
         -> IO Bool
     plotLoop vty peChan psRef tPE = do
-      dr      <- displayRange $ outputIface vty
-      ps      <- readIORef psRef
-      let displayHelp
-            | ps ^. psHelp = (box helpBox :)
-            | otherwise    = id
-          imgs = displayHelp $ renderPlot dr (_psRange ps) (_psSerieses ps)
+      dr           <- displayRange $ outputIface vty
+      ps           <- readIORef psRef
+      PlotData{..} <- ssRef
+      let uiText = case (string (withStyle defAttr bold) <$> _pdTitle, _psHelp ps) of
+            (Nothing, False) -> id
+            (Just t , False) -> (box t ++)
+            (Nothing, True ) -> (box helpBox ++)
+            (Just t , True ) -> (box (vertCat [t, char defAttr ' ', helpBox]) ++)
+          imgs = uiText $ renderPlot dr (_psRange ps) _pdSerieses
 
       update vty $ picForLayers imgs
       readChan peChan >>= \case
@@ -172,18 +192,19 @@ helpText =
     ]
 
 helpBox :: Image
-helpBox =       vertCat (string defAttr . (++ " ") <$> x)
+helpBox = vertCat (string defAttr . (++ " ") <$> x)
     `horizJoin` vertCat (string defAttr <$> y)
   where
     (x,y) = unzip helpText
 
-box :: Image -> Image
-box i = vertCat . map horizCat $
-    [ [c , tb, c ]
-    , [lr, i , lr]
-    , [c , tb, c ]
-    ]
+box :: Image -> [Image]
+box (pad 1 0 1 0 -> i) = [boxed, charFill defAttr ' ' (imageWidth i + 1) (imageHeight i + 1)]
   where
     lr = charFill defAttr '|' 1 (imageHeight i)
     tb = charFill defAttr '-' (imageWidth i) 1
     c  = char defAttr '+'
+    boxed = vertCat . map horizCat $
+      [ [c , tb, c ]
+      , [lr, i , lr]
+      , [c , tb, c ]
+      ]
