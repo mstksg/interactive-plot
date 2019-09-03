@@ -1,6 +1,16 @@
 {-# LANGUAGE ApplicativeDo   #-}
 {-# LANGUAGE LambdaCase      #-}
 
+-- |
+-- Module      : Interative.Plot.Run
+-- Copyright   : (c) Justin Le 2018
+-- License     : BSD3
+--
+-- Maintainer  : justin@jle.im
+-- Stability   : experimental
+-- Portability : non-portable
+--
+-- Run plots interactively in the terminal.
 module Interactive.Plot.Run (
     runPlot
   , runPlotAuto
@@ -62,12 +72,14 @@ displayRange o = do
     (wd, ht) <- displayBounds o
     pure $ C (R 0 wd) (R 0 ht)
 
+-- | Interactively plot auto-serieses in the terminal.
 runPlotAuto
     :: PlotOpts
     -> [AutoSeries]
     -> IO ()
 runPlotAuto po = runPlot po . fromAutoSeries
 
+-- | Interactively plot serieses in the terminal.
 runPlot
     :: PlotOpts
     -> [Series]

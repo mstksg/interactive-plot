@@ -8,16 +8,29 @@
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
+-- |
+-- Module      : Interative.Plot.Core
+-- Copyright   : (c) Justin Le 2018
+-- License     : BSD3
+--
+-- Maintainer  : justin@jle.im
+-- Stability   : experimental
+-- Portability : non-portable
+--
+-- Core rendering functionality for the library.
+--
 module Interactive.Plot.Core (
     Coord(..), cX, cY
-  , Range(.., R2), rMin, rMax, rSize, rMid, _rSize
+  , Range(.., RAbout), rMin, rMax, rSize, rMid, _rSize
   , PointStyle(..), psMarker, psColor
-  , Series(..), sItems, sStyle, coordMap, toCoordMap
+  , Series(..), sItems, sStyle, toCoordMap, fromCoordMap
   , Alignment(..)
   , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange, poRange
   , renderPlot
-  , OrdColor(..)
+  -- * Internal
   , plotRange
+  , OrdColor(..)
+  , renderPoint
   ) where
 
 import           Control.Applicative
@@ -35,6 +48,7 @@ import           Text.Printf
 import qualified Data.Map             as M
 import qualified Data.Set             as S
 
+-- | Newtype wrapper providing an 'Ord' instance for 'Color'.
 newtype OrdColor = OC { getOC :: Color }
     deriving Eq
 
@@ -49,10 +63,11 @@ instance Ord OrdColor where
             ISOColor _ -> GT
             Color240 d -> compare c d
 
-data Coord a = C { _cX :: a
-                 , _cY :: a
+-- | An ordered pair in @a@.
+data Coord a = C { _cX :: a   -- ^ Access @x@.  For getter/setter lenses, see 'cX'.
+                 , _cY :: a   -- ^ Access @y@.  For getter/setter lenses, see 'cY'.
                  }
-  deriving (Show, Functor, Foldable, Traversable)
+  deriving (Show, Functor, Foldable, Traversable, Eq, Ord)
 
 makeLenses ''Coord
 
@@ -69,20 +84,31 @@ instance Applicative Coord where
     pure x = C x x
     C f g <*> C x y = C (f x) (g y)
 
-data Range a = R { _rMin :: a
-                 , _rMax :: a
+-- | A specification for a range.  Using 'R', contains the minimum and
+-- maximum.  Using 'RAbout', contains the midpoint and size.
+data Range a = R { _rMin :: a     -- ^ Minimum of range.  For getter/setter lens, see 'rMin'.
+                 , _rMax :: a     -- ^ Maximum of range.  For getter/setter lens, see 'rMax'.
                  }
   deriving (Show, Functor, Foldable, Traversable)
 
 makeLenses ''Range
 
+-- | "Zipping" behavior on minimum and maximum
 instance Applicative Range where
     pure x = R x x
     R f g <*> R x y = R (f x) (g y)
 
-data PointStyle = PointStyle { _psMarker :: Char
-                             , _psColor  :: Color
-                             }
+-- | Basically the same as @Reader 'Bool'@, for minimum and maximum
+-- fields.
+instance Monad Range where
+    return x = R x x
+    R x y >>= f = R (_rMin (f x)) (_rMax (f y))
+
+-- | Specification of a style for a point.
+data PointStyle = PointStyle
+      { _psMarker :: Char  -- ^ Marker cahracter.  For getter/setter lens, see 'psMarker'.
+      , _psColor  :: Color -- ^ Marker color.  For getter/setter lens, see 'psColor'.
+      }
   deriving (Eq)
 
 makeLenses ''PointStyle
@@ -90,21 +116,25 @@ makeLenses ''PointStyle
 instance Ord PointStyle where
     compare = comparing $ \case PointStyle m1 c1 -> (m1, OC c1)
 
+-- | Data for a single series: contains the coordinate map with the point
+-- style for the series.
 data Series = Series { _sItems :: M.Map Double (S.Set Double)
                      , _sStyle :: PointStyle
                      }
 
 makeLenses ''Series
 
+-- | Alignment specification.
 data Alignment = ALeft
                | ACenter
                | ARight
 
-data PlotOpts = PO { _poTermRatio   :: Double            -- ^ character width ratio of terminal (H/W)
-                   , _poAspectRatio :: Maybe Double      -- ^ plot aspect ratio (H/W)
-                   , _poXRange      :: Maybe (Range Double)
-                   , _poYRange      :: Maybe (Range Double)
-                   }
+data PlotOpts = PO
+    { _poTermRatio   :: Double               -- ^ character width ratio of terminal (H/W)
+    , _poAspectRatio :: Maybe Double         -- ^ plot aspect ratio (H/W)
+    , _poXRange      :: Maybe (Range Double) -- ^ X Range.  Use 'Nothing' for automatic.
+    , _poYRange      :: Maybe (Range Double) -- ^ Y Range.  Use 'Nothing' for automatic.
+    }
 
 makeLenses ''PlotOpts
 
@@ -115,33 +145,54 @@ instance Default PlotOpts where
              , _poYRange      = Nothing
              }
 
-pattern R2 :: Fractional a => a -> a -> Range a
-pattern R2 rM rS <- (\case R{..} -> ((_rMin + _rMax) / 2, _rMax - _rMin)->(rM, rS))
+-- | An alternative "constructor" for 'R', which takes a midpoint and size
+-- instead of a min and max.
+pattern RAbout :: Fractional a => a -> a -> Range a
+pattern RAbout { _rMid, _rSize' } <- (\case R{..} -> ((_rMin + _rMax) / 2, _rMax - _rMin)->(_rMid, _rSize'))
   where
-    R2 rM rS = R (rM - rS2) (rM + rS2)
+    RAbout rM rS = R (rM - rS2) (rM + rS2)
       where
         rS2 = rS / 2
-{-# COMPLETE R2 #-}
+{-# COMPLETE RAbout #-}
 
+-- | A version of '_rSize' that works for any instance of 'Num'.
 _rSize :: Num a => Range a -> a
 _rSize R{..} = _rMax - _rMin
 
+-- | Lens into the size of a 'Range'  Modifying this size results in
+-- a scaling about the midpoint of the range.
+--
+-- @
+-- view rSize (R 2 4)
+-- -- 2
+-- over rSize (* 2) (R 2 4)
+-- -- R 1 5
+-- @
 rSize :: Fractional a => Lens' (Range a) a
-rSize f (R2 m s) = R2 m <$> f s
+rSize f (RAbout m s) = RAbout m <$> f s
 
+-- | Lens into the midpoint of a 'Range'.  Modifying this midpoint shifts
+-- the range to a new midpoint, preserving the size.
+--
+-- @
+-- view rMid (R 2 4)
+-- -- 3
+-- over rMid (+ 3) (R 2 4)
+-- -- R 5 7
+-- @
 rMid :: Fractional a => Lens' (Range a) a
-rMid f (R2 m s) = (`R2` s) <$> f m
+rMid f (RAbout m s) = (`RAbout` s) <$> f m
 
+-- | Check if a point is within the 'Range' (inclusive).
 within :: Ord a => a -> Range a -> Bool
 within x r = x >= r ^. rMin && x <= r ^. rMax
 
+-- | Lens into a 'PlotOpts' getting its range X and range Y settings.
 poRange :: Lens' PlotOpts (Maybe (Range Double), Maybe (Range Double))
 poRange f (PO r a x y) = uncurry (PO r a) <$> f (x, y)
 
-coordMap :: Ord a => Lens' (M.Map a (S.Set a)) [Coord a]
-coordMap = lens (M.foldMapWithKey (\k -> foldMap ((:[]) . C k)))
-                (const toCoordMap)
-
+-- | Compute plot axis ranges based on a list of points and the size of the
+-- display region.
 plotRange
     :: PlotOpts
     -> Coord (Range Int)      -- ^ display region
@@ -182,10 +233,11 @@ plotRange PO{..} dr ss = case _poAspectRatio of
     pointRange :: Coord (Range Double)
     pointRange = fmap unZero
                . foldl' (liftA2 go) (C (R 0 0) (R 0 0))
-               $ ss ^.. traverse . sItems . coordMap . folded
+               $ ss ^.. traverse . sItems . folding fromCoordMap
       where
         go oldR x = R min max <*> pure x <*> oldR
 
+-- | Render serieses based on a display region and plot axis ranges.
 renderPlot
     :: Coord (Range Int)        -- ^ display region
     -> Coord (Range Double)     -- ^ plot axis range
@@ -244,6 +296,7 @@ lerp
 lerp rOld rNew x =
     rNew ^. rMin + (x - rOld ^. rMin) / (rOld ^. rSize) * (rNew ^. rSize)
 
+-- | Render a single series as a set of points.
 renderSeries
     :: Coord (Range Int)        -- ^ Display region
     -> Coord (Range Double)     -- ^ Plot axis range
@@ -278,13 +331,28 @@ validPoints pr = fmap (setRange (pr ^. cY))
         (_  , sMin, s') = S.splitMember (r ^. rMin) s
         (s'', sMax, _ ) = S.splitMember (r ^. rMax) s'
 
+-- | Turn a set of coordinates into a map of x's to the y's found in
+-- the set.
+--
+-- Note that this forms an isomorphism with 'fromCoordMap'.
 toCoordMap
-    :: Ord a
-    => [Coord a]
+    :: Eq a
+    => S.Set (Coord a)
     -> M.Map a (S.Set a)
-toCoordMap = M.fromListWith S.union
-         . map (\case C x y -> (x, S.singleton y))
+toCoordMap = fmap (S.fromDistinctAscList . ($ []))
+           . M.fromAscListWith (.)
+           . foldMap (\case C x y -> [(x, (y:))])
 
+-- | Convert a map of x's to y's into a set of x-y coordinates.
+--
+-- Note that this forms an isomorphism with 'toCoordMap'.
+fromCoordMap
+    :: M.Map a (S.Set a)
+    -> S.Set (Coord a)
+fromCoordMap = S.fromDistinctAscList
+             . M.foldMapWithKey (\k -> foldMap ((:[]) . C k))
+
+-- | Render a single according to a 'PointStyle'.
 renderPoint
     :: PointStyle
     -> Image
