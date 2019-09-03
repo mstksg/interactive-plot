@@ -13,9 +13,7 @@
 --
 -- Create common serieses.
 module Interactive.Plot.Series (
-    AutoPointStyle(..), apsMarker, apsColor
-  , AutoSeries(..), asItems, asStyle
-  , defaultStyles
+    defaultStyles
   -- * Create a 'Series' from an 'AutoSeries'.
   , fromAutoSeries
   , fromAutoSeriesIO
@@ -30,51 +28,26 @@ module Interactive.Plot.Series (
 
 import           Control.Monad.Random
 import           Control.Monad.State
-import           Data.Default
 import           Data.Foldable
 import           Data.Maybe
 import           Graphics.Vty
 import           Interactive.Plot.Core
 import           Lens.Micro
-import           Lens.Micro.TH
-import qualified Data.Map              as M
 import qualified Data.Set              as S
-
--- | A version of 'PointStyle' where you can leave the marker or color
--- blank, to be automatically inferred.
-data AutoPointStyle = APS
-    { _apsMarker :: Maybe Char
-    , _apsColor  :: Maybe Color
-    }
-  deriving Show
-
-makeLenses ''AutoPointStyle
-
-instance Default AutoPointStyle where
-    def = APS Nothing Nothing
-
--- | A version of 'Series' where you can leave the marker or color blank,
--- to be automatically inferred.
-data AutoSeries = AS { _asItems :: M.Map Double (S.Set Double)
-                     , _asStyle :: AutoPointStyle
-                     }
-  deriving Show
-
-makeLenses ''AutoSeries
 
 -- | Construct a series from any foldable container of y-values.
 listSeries :: Foldable t => t Double -> AutoPointStyle -> AutoSeries
-listSeries xs = AS (toCoordMap . S.fromList . zipWith C [0..] . toList $ xs)
+listSeries xs = Series (toCoordMap . S.fromList . zipWith C [0..] . toList $ xs)
 
 -- | Construct a series from any foldable container of x-y tuples.
 tupleSeries :: Foldable t => t (Double, Double) -> AutoPointStyle -> AutoSeries
-tupleSeries xs = AS (toCoordMap . S.fromList . foldMap ((:[]) . uncurry C) $ xs)
+tupleSeries xs = Series (toCoordMap . S.fromList . foldMap ((:[]) . uncurry C) $ xs)
 
 -- | Convert from a 'Series' back into an 'AutoSeries' with settings given.
 autoSeries :: Series -> AutoSeries
-autoSeries s = AS (s ^. sItems)
-             $ APS (Just (s ^. sStyle . psMarker))
-                   (Just (s ^. sStyle . psColor))
+autoSeries s = Series (s ^. sItems)
+             $ PointStyleF (Just (s ^. sStyle . psMarker))
+                           (Just (s ^. sStyle . psColor))
 
 -- | @'enumRange' n ('R' a b)@ generates a list of @n@ equally spaced values
 -- between @a@ and @b@.
@@ -132,30 +105,30 @@ fromAutoSeries_ :: StdGen -> [AutoSeries] -> [Series]
 fromAutoSeries_ seed = flip evalRand seed . flip evalStateT S.empty . mapM go
   where
     go :: AutoSeries -> StateT (S.Set PointStyle) (Rand StdGen) Series
-    go (AS is ps) = Series is <$> pickPs
+    go (Series is ps) = Series is <$> pickPs
       where
         pickPs = case ps of
-          APS Nothing Nothing -> do
+          PointStyleF Nothing Nothing -> do
             picked <- get
             samp <- sampleSet $ defaultStyles S.\\ picked
             case samp of
               Nothing -> fromJust <$> sampleSet defaultStyles
               Just s  -> s <$ put (s `S.insert` picked)
-          APS (Just m) Nothing  -> do
+          PointStyleF (Just m) Nothing  -> do
             picked <- get
             let allDefaults = combinePointStyles (S.singleton m) defaultColors
             samp <- sampleSet $ allDefaults S.\\ picked
             case samp of
               Nothing -> fromJust <$> sampleSet allDefaults
               Just s  -> s <$ put (s `S.insert` picked)
-          APS Nothing (Just c) -> do
+          PointStyleF Nothing (Just c) -> do
             picked <- get
             let allDefaults = combinePointStyles defaultMarkers (S.singleton (OC c))
             samp <- sampleSet $ allDefaults S.\\ picked
             case samp of
               Nothing -> fromJust <$> sampleSet allDefaults
               Just s  -> s <$ put (s `S.insert` picked)
-          APS (Just m) (Just c) -> pure $ PointStyle m c
+          PointStyleF (Just m) (Just c) -> pure $ PointStyle m c
 
 sampleSet
     :: (MonadRandom m)

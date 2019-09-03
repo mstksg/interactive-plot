@@ -1,12 +1,18 @@
-{-# LANGUAGE ApplicativeDo     #-}
-{-# LANGUAGE DeriveFoldable    #-}
-{-# LANGUAGE DeriveFunctor     #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE PatternSynonyms   #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TemplateHaskell   #-}
-{-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE ApplicativeDo        #-}
+{-# LANGUAGE DeriveFoldable       #-}
+{-# LANGUAGE DeriveFunctor        #-}
+{-# LANGUAGE DeriveGeneric        #-}
+{-# LANGUAGE DeriveTraversable    #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE LambdaCase           #-}
+{-# LANGUAGE PatternSynonyms      #-}
+{-# LANGUAGE PatternSynonyms      #-}
+{-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE StandaloneDeriving   #-}
+{-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ViewPatterns         #-}
 
 -- |
 -- Module      : Interative.Plot.Core
@@ -22,8 +28,8 @@
 module Interactive.Plot.Core (
     Coord(..), cX, cY
   , Range(.., RAbout), rMin, rMax, rSize, rMid, _rSize
-  , PointStyle(..), psMarker, psColor
-  , Series(..), sItems, sStyle, toCoordMap, fromCoordMap
+  , PointStyleF(.., PointStyle), PointStyle, AutoPointStyle, psMarker, psColor
+  , SeriesF(..), Series, AutoSeries, sItems, sStyle, toCoordMap, fromCoordMap
   , Alignment(..)
   , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange, poRange
   , renderPlot
@@ -39,14 +45,16 @@ import           Data.Coerce
 import           Data.Default
 import           Data.Foldable
 import           Data.Functor.Compose
+import           Data.Functor.Identity
 import           Data.Maybe
 import           Data.Ord
-import           Graphics.Vty
+import           GHC.Generics          (Generic)
+import           Graphics.Vty hiding   ((<|>))
 import           Lens.Micro
 import           Lens.Micro.TH
 import           Text.Printf
-import qualified Data.Map             as M
-import qualified Data.Set             as S
+import qualified Data.Map              as M
+import qualified Data.Set              as S
 
 -- | Newtype wrapper providing an 'Ord' instance for 'Color'.
 newtype OrdColor = OC { getOC :: Color }
@@ -105,24 +113,57 @@ instance Monad Range where
     R x y >>= f = R (_rMin (f x)) (_rMax (f y))
 
 -- | Specification of a style for a point.
-data PointStyle = PointStyle
-      { _psMarker :: Char  -- ^ Marker cahracter.  For getter/setter lens, see 'psMarker'.
-      , _psColor  :: Color -- ^ Marker color.  For getter/setter lens, see 'psColor'.
+data PointStyleF f = PointStyleF
+      { _psMarkerF :: f Char  -- ^ Marker cahracter.  For getter/setter lens, see 'psMarker'.
+      , _psColorF  :: f Color -- ^ Marker color.  For getter/setter lens, see 'psColor'.
       }
-  deriving (Eq)
+  deriving (Generic)
 
-makeLenses ''PointStyle
+makeLenses ''PointStyleF
 
-instance Ord PointStyle where
-    compare = comparing $ \case PointStyle m1 c1 -> (m1, OC c1)
+type PointStyle     = PointStyleF Identity
+
+-- | A version of 'PointStyle' where you can leave the marker or color
+-- blank, to be automatically inferred.
+type AutoPointStyle = PointStyleF Maybe
+
+pattern PointStyle :: Char -> Color -> PointStyle
+pattern PointStyle { _psMarker, _psColor } = PointStyleF (Identity _psMarker) (Identity _psColor)
+{-# COMPLETE PointStyle #-}
+
+instance Semigroup AutoPointStyle where
+    PointStyleF m1 c1 <> PointStyleF m2 c2 = PointStyleF (m1 <|> m2) (c1 <|> c2)
+instance Monoid    AutoPointStyle where
+    mempty = PointStyleF Nothing Nothing
+
+deriving instance (Eq (f Char), Eq (f Color)) => Eq (PointStyleF f)
+instance (Ord (f Char), Ord (f OrdColor), Functor f, Eq (f Color)) => Ord (PointStyleF f) where
+    compare = comparing $ \case PointStyleF m1 c1 -> (m1, OC <$> c1)
+
+_Identity :: Lens (Identity a) (Identity b) a b
+_Identity f (Identity x) = Identity <$> f x
+
+psMarker :: Lens' PointStyle Char
+psMarker = psMarkerF . _Identity
+
+psColor :: Lens' PointStyle Color
+psColor = psColorF . _Identity
 
 -- | Data for a single series: contains the coordinate map with the point
 -- style for the series.
-data Series = Series { _sItems :: M.Map Double (S.Set Double)
-                     , _sStyle :: PointStyle
-                     }
+data SeriesF f = Series { _sItems :: M.Map Double (S.Set Double)
+                        , _sStyle :: PointStyleF f
+                        }
 
-makeLenses ''Series
+
+type Series = SeriesF Identity
+
+-- | A version of 'Series' where you can leave the marker or color blank,
+-- to be automatically inferred.
+type AutoSeries = SeriesF Maybe
+
+
+makeLenses ''SeriesF
 
 -- | Alignment specification.
 data Alignment = ALeft
