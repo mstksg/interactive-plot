@@ -90,7 +90,13 @@ data PlotData = PlotData
     , _pdSerieses :: [Series]
     }
 
-makeLenses ''PlotData
+-- | Getter/setter lens to the title field of a 'PlotData'
+pdTitle :: Lens' PlotData (Maybe String)
+pdTitle f (PlotData x y) = (`PlotData` y) <$> f x
+
+-- | Getter/setter lens to the serieses field of a 'PlotData'
+pdSerieses :: Lens' PlotData [Series]
+pdSerieses f (PlotData x y) = (PlotData x) <$> f y
 
 -- | Display fixed plot and title interactively, filling in default values.
 runPlotAuto
