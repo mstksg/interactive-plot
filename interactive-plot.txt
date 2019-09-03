@@ -22,8 +22,8 @@ C :: a -> a -> Coord a
 
 -- | Access <tt>y</tt>. For getter/setter lenses, see <a>cY</a>.
 [_cY] :: Coord a -> a
-cX :: forall a_afOr. Lens' (Coord a_afOr) a_afOr
-cY :: forall a_afOr. Lens' (Coord a_afOr) a_afOr
+cX :: forall a_afT4. Lens' (Coord a_afT4) a_afT4
+cY :: forall a_afT4. Lens' (Coord a_afT4) a_afT4
 
 -- | A specification for a range. Using <a>R</a>, contains the minimum and
 --   maximum. Using <a>RAbout</a>, contains the midpoint and size.
@@ -39,8 +39,8 @@ R :: a -> a -> Range a
 -- | An alternative "constructor" for <a>R</a>, which takes a midpoint and
 --   size instead of a min and max.
 pattern RAbout :: Fractional a => a -> a -> Range a
-rMin :: forall a_ai0a. Lens' (Range a_ai0a) a_ai0a
-rMax :: forall a_ai0a. Lens' (Range a_ai0a) a_ai0a
+rMin :: forall a_ai4N. Lens' (Range a_ai4N) a_ai4N
+rMax :: forall a_ai4N. Lens' (Range a_ai4N) a_ai4N
 
 -- | Lens into the size of a <a>Range</a> Modifying this size results in a
 --   scaling about the midpoint of the range.
@@ -80,6 +80,8 @@ PointStyleF :: f Char -> f Color -> PointStyleF f
 -- | Marker color. For getter/setter lens, see <a>psColor</a>.
 [_psColorF] :: PointStyleF f -> f Color
 pattern PointStyle :: Char -> Color -> PointStyle
+
+-- | Specification of a style for a point.
 type PointStyle = PointStyleF Identity
 
 -- | A version of <a>PointStyle</a> where you can leave the marker or color
@@ -99,8 +101,8 @@ type Series = SeriesF Identity
 -- | A version of <a>SeriesF</a> where you can leave the marker or color
 --   blank, to be automatically inferred.
 type AutoSeries = SeriesF Auto
-sItems :: forall f_ajFs. Lens' (SeriesF f_ajFs) (Map Double (Set Double))
-sStyle :: forall f_ajFs f_ajZB. Lens (SeriesF f_ajFs) (SeriesF f_ajZB) (PointStyleF f_ajFs) (PointStyleF f_ajZB)
+sItems :: forall f_ajKd. Lens' (SeriesF f_ajKd) (Map Double (Set Double))
+sStyle :: forall f_ajKd f_ak4m. Lens (SeriesF f_ajKd) (SeriesF f_ak4m) (PointStyleF f_ajKd) (PointStyleF f_ak4m)
 
 -- | Turn a set of coordinates into a map of x's to the y's found in the
 --   set.
@@ -119,7 +121,7 @@ ALeft :: Alignment
 ACenter :: Alignment
 ARight :: Alignment
 data PlotOpts
-PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> PlotOpts
+PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> Maybe StdGen -> PlotOpts
 
 -- | character width ratio of terminal (H/W)
 [_poTermRatio] :: PlotOpts -> Double
@@ -132,6 +134,10 @@ PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> 
 
 -- | Y Range. Use <a>Nothing</a> for automatic.
 [_poYRange] :: PlotOpts -> Maybe (Range Double)
+
+-- | How to fill in missing values. <a>Nothing</a> for IO, <a>Just</a> for
+--   deterministic seed.
+[_poAutoMethod] :: PlotOpts -> Maybe StdGen
 poTermRatio :: Lens' PlotOpts Double
 poAspectRatio :: Lens' PlotOpts (Maybe Double)
 poXRange :: Lens' PlotOpts (Maybe (Range Double))
@@ -139,6 +145,7 @@ poYRange :: Lens' PlotOpts (Maybe (Range Double))
 
 -- | Lens into a <a>PlotOpts</a> getting its range X and range Y settings.
 poRange :: Lens' PlotOpts (Maybe (Range Double), Maybe (Range Double))
+poAutoMethod :: Lens' PlotOpts (Maybe StdGen)
 
 -- | Render serieses based on a display region and plot axis ranges.
 renderPlot :: Coord (Range Int) -> Coord (Range Double) -> [Series] -> [Image]
@@ -203,10 +210,10 @@ fromAutoSeriesIO :: [AutoSeries] -> IO [Series]
 fromAutoSeries_ :: StdGen -> [AutoSeries] -> [Series]
 
 -- | Construct a series from any foldable container of y-values.
-listSeries :: Foldable t => t Double -> AutoPointStyle -> AutoSeries
+listSeries :: Foldable t => t Double -> PointStyleF f -> SeriesF f
 
 -- | Construct a series from any foldable container of x-y tuples.
-tupleSeries :: Foldable t => t (Double, Double) -> AutoPointStyle -> AutoSeries
+tupleSeries :: Foldable t => t (Double, Double) -> PointStyleF f -> SeriesF f
 
 -- | Convert from a <a>SeriesF</a> back into an <a>AutoSeries</a> with
 --   settings given.
@@ -214,7 +221,7 @@ autoSeries :: Series -> AutoSeries
 
 -- | Construct a series from a function x to y, given a foldable container
 --   of x values.
-funcSeries :: Foldable t => (Double -> Double) -> t Double -> AutoPointStyle -> AutoSeries
+funcSeries :: Foldable t => (Double -> Double) -> t Double -> PointStyleF f -> SeriesF f
 
 -- | <tt><a>enumRange</a> n (<a>R</a> a b)</tt> generates a list of
 --   <tt>n</tt> equally spaced values between <tt>a</tt> and <tt>b</tt>.
