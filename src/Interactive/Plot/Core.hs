@@ -28,6 +28,7 @@
 module Interactive.Plot.Core (
     Coord(..), cX, cY
   , Range(.., RAbout), rMin, rMax, rSize, rMid, _rSize
+  , Auto(..)
   , PointStyleF(.., PointStyle), PointStyle, AutoPointStyle, psMarker, psColor
   , SeriesF(..), Series, AutoSeries, sItems, sStyle, toCoordMap, fromCoordMap
   , Alignment(..)
@@ -112,6 +113,17 @@ instance Monad Range where
     return x = R x x
     R x y >>= f = R (_rMin (f x)) (_rMax (f y))
 
+data Auto a = Auto | Given a
+  deriving (Show, Eq, Ord, Generic)
+
+instance Semigroup (Auto a) where
+    (<>) = \case
+      Auto    -> id
+      Given x -> \case Auto -> Given x; Given y -> Given y
+
+instance Monoid (Auto a) where
+    mempty = Auto
+
 -- | Specification of a style for a point.
 data PointStyleF f = PointStyleF
       { _psMarkerF :: f Char  -- ^ Marker cahracter.  For getter/setter lens, see 'psMarker'.
@@ -125,16 +137,16 @@ type PointStyle     = PointStyleF Identity
 
 -- | A version of 'PointStyle' where you can leave the marker or color
 -- blank, to be automatically inferred.
-type AutoPointStyle = PointStyleF Maybe
+type AutoPointStyle = PointStyleF Auto
 
 pattern PointStyle :: Char -> Color -> PointStyle
 pattern PointStyle { _psMarker, _psColor } = PointStyleF (Identity _psMarker) (Identity _psColor)
 {-# COMPLETE PointStyle #-}
 
-instance Semigroup AutoPointStyle where
-    PointStyleF m1 c1 <> PointStyleF m2 c2 = PointStyleF (m1 <|> m2) (c1 <|> c2)
-instance Monoid    AutoPointStyle where
-    mempty = PointStyleF Nothing Nothing
+instance (Semigroup (f Char), Semigroup (f Color)) => Semigroup (PointStyleF f) where
+    PointStyleF m1 c1 <> PointStyleF m2 c2 = PointStyleF (m1 <> m2) (c1 <> c2)
+instance (Monoid (f Char), Monoid (f Color)) => Monoid (PointStyleF f) where
+    mempty = PointStyleF mempty mempty
 
 deriving instance (Eq (f Char), Eq (f Color)) => Eq (PointStyleF f)
 instance (Ord (f Char), Ord (f OrdColor), Functor f, Eq (f Color)) => Ord (PointStyleF f) where
@@ -160,7 +172,7 @@ type Series = SeriesF Identity
 
 -- | A version of 'Series' where you can leave the marker or color blank,
 -- to be automatically inferred.
-type AutoSeries = SeriesF Maybe
+type AutoSeries = SeriesF Auto
 
 
 makeLenses ''SeriesF

@@ -46,8 +46,8 @@ tupleSeries xs = Series (toCoordMap . S.fromList . foldMap ((:[]) . uncurry C) $
 -- | Convert from a 'Series' back into an 'AutoSeries' with settings given.
 autoSeries :: Series -> AutoSeries
 autoSeries s = Series (s ^. sItems)
-             $ PointStyleF (Just (s ^. sStyle . psMarker))
-                           (Just (s ^. sStyle . psColor))
+             $ PointStyleF (Given (s ^. sStyle . psMarker))
+                           (Given (s ^. sStyle . psColor))
 
 -- | @'enumRange' n ('R' a b)@ generates a list of @n@ equally spaced values
 -- between @a@ and @b@.
@@ -108,27 +108,27 @@ fromAutoSeries_ seed = flip evalRand seed . flip evalStateT S.empty . mapM go
     go (Series is ps) = Series is <$> pickPs
       where
         pickPs = case ps of
-          PointStyleF Nothing Nothing -> do
+          PointStyleF Auto Auto -> do
             picked <- get
             samp <- sampleSet $ defaultStyles S.\\ picked
             case samp of
               Nothing -> fromJust <$> sampleSet defaultStyles
               Just s  -> s <$ put (s `S.insert` picked)
-          PointStyleF (Just m) Nothing  -> do
+          PointStyleF (Given m) Auto -> do
             picked <- get
             let allDefaults = combinePointStyles (S.singleton m) defaultColors
             samp <- sampleSet $ allDefaults S.\\ picked
             case samp of
               Nothing -> fromJust <$> sampleSet allDefaults
               Just s  -> s <$ put (s `S.insert` picked)
-          PointStyleF Nothing (Just c) -> do
+          PointStyleF Auto (Given c) -> do
             picked <- get
             let allDefaults = combinePointStyles defaultMarkers (S.singleton (OC c))
             samp <- sampleSet $ allDefaults S.\\ picked
             case samp of
               Nothing -> fromJust <$> sampleSet allDefaults
               Just s  -> s <$ put (s `S.insert` picked)
-          PointStyleF (Just m) (Just c) -> pure $ PointStyle m c
+          PointStyleF (Given m) (Given c) -> pure $ PointStyle m c
 
 sampleSet
     :: (MonadRandom m)
