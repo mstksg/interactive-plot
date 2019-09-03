@@ -27,9 +27,9 @@
 --
 module Interactive.Plot.Core (
     Coord(..), cX, cY
-  , Range(.., RAbout), rMin, rMax, rSize, rMid, _rSize
+  , Range(.., RAbout), _rMid, _rSize', rMin, rMax, rSize, rMid, _rSize
   , Auto(..)
-  , PointStyle, pattern PointStyle, PointStyleF(..), AutoPointStyle, psMarker, psColor, _psMarker, _psColor
+  , PointStyle, pattern PointStyle, _psMarker, _psColor, PointStyleF(..), AutoPointStyle, psMarker, psColor
   , Series, SeriesF(..), AutoSeries, sItems, sStyle, toCoordMap, fromCoordMap
   , Alignment(..)
   , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange, poRange, poAutoMethod
@@ -182,6 +182,8 @@ type PointStyle     = PointStyleF Identity
 type AutoPointStyle = PointStyleF Auto
 
 -- | Pattern synonym/constructor for 'PointStyle'.
+--
+-- This comes with two record fields, '_psMarker' and '_psColor'.
 pattern PointStyle :: Char -> Color -> PointStyle
 pattern PointStyle { _psMarker, _psColor } = PointStyleF (Identity _psMarker) (Identity _psColor)
 {-# COMPLETE PointStyle #-}
@@ -272,6 +274,8 @@ instance Default PlotOpts where
 
 -- | An alternative "constructor" for 'R', which takes a midpoint and size
 -- instead of a min and max.
+--
+-- This comes with record fields, '_rMid' and '_rSize''.
 pattern RAbout :: Fractional a => a -> a -> Range a
 pattern RAbout { _rMid, _rSize' } <- (\case R{..} -> ((_rMin + _rMax) / 2, _rMax - _rMin)->(_rMid, _rSize'))
   where
@@ -280,7 +284,9 @@ pattern RAbout { _rMid, _rSize' } <- (\case R{..} -> ((_rMin + _rMax) / 2, _rMax
         rS2 = rS / 2
 {-# COMPLETE RAbout #-}
 
--- | A version of '_rSize' that works for any instance of 'Num'.
+-- | Gets the size of a 'Range'.
+--
+-- A version of '_rSize'' that works for any instance of 'Num'.
 _rSize :: Num a => Range a -> a
 _rSize R{..} = _rMax - _rMin
 

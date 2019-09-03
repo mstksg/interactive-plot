@@ -21,7 +21,6 @@ module Interactive.Plot.Series (
   -- * Create common 'Series'
   , listSeries
   , tupleSeries
-  , autoSeries
   , funcSeries
   , enumRange
   ) where
@@ -35,19 +34,30 @@ import           Interactive.Plot.Core
 import           Lens.Micro
 import qualified Data.Set              as S
 
--- | Construct a series from any foldable container of y-values.
+-- | Construct a series from any foldable container of y-values.  The
+-- x-values are automatically assigned to 0, 1, 2, 3 ... etc.
+--
+-- Note that this is polymorphic over both 'PointStyle' and
+-- 'AutoPointStyle':
+--
+-- @
+-- 'listSeries' :: Foldable t => t Double -> 'PointStyle' -> 'Series'
+-- 'listSeries' :: Foldable t => t Double -> 'AutoPointStyle' -> 'AutoSeries'
+-- @
 listSeries :: Foldable t => t Double -> PointStyleF f -> SeriesF f
 listSeries xs = Series (toCoordMap . S.fromList . zipWith C [0..] . toList $ xs)
 
 -- | Construct a series from any foldable container of x-y tuples.
+--
+-- Note that this is polymorphic over both 'PointStyle' and
+-- 'AutoPointStyle':
+--
+-- @
+-- 'tupleSeries' :: Foldable t => t (Double, Double) -> 'PointStyle' -> 'Series'
+-- 'tupleSeries' :: Foldable t => t (Double, Double) -> 'AutoPointStyle' -> 'AutoSeries'
+-- @
 tupleSeries :: Foldable t => t (Double, Double) -> PointStyleF f -> SeriesF f
 tupleSeries xs = Series (toCoordMap . S.fromList . foldMap ((:[]) . uncurry C) $ xs)
-
--- | Convert from a 'Series' back into an 'AutoSeries' with settings given.
-autoSeries :: Series -> AutoSeries
-autoSeries s = Series (s ^. sItems)
-             $ PointStyleF (Given (s ^. sStyle . psMarker))
-                           (Given (s ^. sStyle . psColor))
 
 -- | @'enumRange' n ('R' a b)@ generates a list of @n@ equally spaced values
 -- between @a@ and @b@.
@@ -62,6 +72,14 @@ enumRange n r = (+ r ^. rMin) . (* s) . fromIntegral <$> [0 .. (n - 1)]
 
 -- | Construct a series from a function x to y, given a foldable container
 -- of x values.
+--
+-- Note that this is polymorphic over both 'PointStyle' and
+-- 'AutoPointStyle':
+--
+-- @
+-- 'funcSeries' :: Foldable t => (Double -> Double) -> t Double -> 'PointStyle' -> 'Series'
+-- 'funcSeries' :: Foldable t => (Double -> Double) -> t Double -> 'AutoPointStyle' -> 'AutoSeries'
+-- @
 funcSeries
     :: Foldable t
     => (Double -> Double)
