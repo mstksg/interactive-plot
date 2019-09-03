@@ -22,8 +22,8 @@ C :: a -> a -> Coord a
 
 -- | Access <tt>y</tt>. For getter/setter lenses, see <a>cY</a>.
 [_cY] :: Coord a -> a
-cX :: forall a_afLm. Lens' (Coord a_afLm) a_afLm
-cY :: forall a_afLm. Lens' (Coord a_afLm) a_afLm
+cX :: forall a_afOr. Lens' (Coord a_afOr) a_afOr
+cY :: forall a_afOr. Lens' (Coord a_afOr) a_afOr
 
 -- | A specification for a range. Using <a>R</a>, contains the minimum and
 --   maximum. Using <a>RAbout</a>, contains the midpoint and size.
@@ -39,8 +39,8 @@ R :: a -> a -> Range a
 -- | An alternative "constructor" for <a>R</a>, which takes a midpoint and
 --   size instead of a min and max.
 pattern RAbout :: Fractional a => a -> a -> Range a
-rMin :: forall a_ahWP. Lens' (Range a_ahWP) a_ahWP
-rMax :: forall a_ahWP. Lens' (Range a_ahWP) a_ahWP
+rMin :: forall a_ai0a. Lens' (Range a_ai0a) a_ai0a
+rMax :: forall a_ai0a. Lens' (Range a_ai0a) a_ai0a
 
 -- | Lens into the size of a <a>Range</a> Modifying this size results in a
 --   scaling about the midpoint of the range.
@@ -66,27 +66,41 @@ rMid :: Fractional a => Lens' (Range a) a
 
 -- | A version of <a>_rSize</a> that works for any instance of <a>Num</a>.
 _rSize :: Num a => Range a -> a
+data Auto a
+Auto :: Auto a
+Given :: a -> Auto a
 
 -- | Specification of a style for a point.
-data PointStyle
-PointStyle :: Char -> Color -> PointStyle
+data PointStyleF f
+PointStyleF :: f Char -> f Color -> PointStyleF f
 
 -- | Marker cahracter. For getter/setter lens, see <a>psMarker</a>.
-[_psMarker] :: PointStyle -> Char
+[_psMarkerF] :: PointStyleF f -> f Char
 
 -- | Marker color. For getter/setter lens, see <a>psColor</a>.
-[_psColor] :: PointStyle -> Color
+[_psColorF] :: PointStyleF f -> f Color
+pattern PointStyle :: Char -> Color -> PointStyle
+type PointStyle = PointStyleF Identity
+
+-- | A version of <a>PointStyle</a> where you can leave the marker or color
+--   blank, to be automatically inferred.
+type AutoPointStyle = PointStyleF Auto
 psMarker :: Lens' PointStyle Char
 psColor :: Lens' PointStyle Color
 
 -- | Data for a single series: contains the coordinate map with the point
 --   style for the series.
-data Series
-Series :: Map Double (Set Double) -> PointStyle -> Series
-[_sItems] :: Series -> Map Double (Set Double)
-[_sStyle] :: Series -> PointStyle
-sItems :: Lens' Series (Map Double (Set Double))
-sStyle :: Lens' Series PointStyle
+data SeriesF f
+Series :: Map Double (Set Double) -> PointStyleF f -> SeriesF f
+[_sItems] :: SeriesF f -> Map Double (Set Double)
+[_sStyle] :: SeriesF f -> PointStyleF f
+type Series = SeriesF Identity
+
+-- | A version of <a>SeriesF</a> where you can leave the marker or color
+--   blank, to be automatically inferred.
+type AutoSeries = SeriesF Auto
+sItems :: forall f_ajFs. Lens' (SeriesF f_ajFs) (Map Double (Set Double))
+sStyle :: forall f_ajFs f_ajZB. Lens (SeriesF f_ajFs) (SeriesF f_ajZB) (PointStyleF f_ajFs) (PointStyleF f_ajZB)
 
 -- | Turn a set of coordinates into a map of x's to the y's found in the
 --   set.
@@ -141,8 +155,17 @@ OC :: Color -> OrdColor
 -- | Render a single according to a <a>PointStyle</a>.
 renderPoint :: PointStyle -> Image
 instance Data.Default.Class.Default Interactive.Plot.Core.PlotOpts
-instance GHC.Classes.Ord Interactive.Plot.Core.PointStyle
-instance GHC.Classes.Eq Interactive.Plot.Core.PointStyle
+instance (GHC.Classes.Eq (f GHC.Types.Char), GHC.Classes.Eq (f Graphics.Vty.Attributes.Color.Color)) => GHC.Classes.Eq (Interactive.Plot.Core.PointStyleF f)
+instance (GHC.Base.Semigroup (f GHC.Types.Char), GHC.Base.Semigroup (f Graphics.Vty.Attributes.Color.Color)) => GHC.Base.Semigroup (Interactive.Plot.Core.PointStyleF f)
+instance (GHC.Base.Monoid (f GHC.Types.Char), GHC.Base.Monoid (f Graphics.Vty.Attributes.Color.Color)) => GHC.Base.Monoid (Interactive.Plot.Core.PointStyleF f)
+instance (GHC.Classes.Ord (f GHC.Types.Char), GHC.Classes.Ord (f Interactive.Plot.Core.OrdColor), GHC.Base.Functor f, GHC.Classes.Eq (f Graphics.Vty.Attributes.Color.Color)) => GHC.Classes.Ord (Interactive.Plot.Core.PointStyleF f)
+instance GHC.Generics.Generic (Interactive.Plot.Core.PointStyleF f)
+instance GHC.Generics.Generic (Interactive.Plot.Core.Auto a)
+instance GHC.Classes.Ord a => GHC.Classes.Ord (Interactive.Plot.Core.Auto a)
+instance GHC.Classes.Eq a => GHC.Classes.Eq (Interactive.Plot.Core.Auto a)
+instance GHC.Show.Show a => GHC.Show.Show (Interactive.Plot.Core.Auto a)
+instance GHC.Base.Semigroup (Interactive.Plot.Core.Auto a)
+instance GHC.Base.Monoid (Interactive.Plot.Core.Auto a)
 instance GHC.Base.Applicative Interactive.Plot.Core.Range
 instance GHC.Base.Monad Interactive.Plot.Core.Range
 instance Data.Traversable.Traversable Interactive.Plot.Core.Range
@@ -164,36 +187,18 @@ instance GHC.Classes.Ord Interactive.Plot.Core.OrdColor
 -- | Create common serieses.
 module Interactive.Plot.Series
 
--- | A version of <a>PointStyle</a> where you can leave the marker or color
---   blank, to be automatically inferred.
-data AutoPointStyle
-APS :: Maybe Char -> Maybe Color -> AutoPointStyle
-[_apsMarker] :: AutoPointStyle -> Maybe Char
-[_apsColor] :: AutoPointStyle -> Maybe Color
-apsMarker :: Lens' AutoPointStyle (Maybe Char)
-apsColor :: Lens' AutoPointStyle (Maybe Color)
-
--- | A version of <a>Series</a> where you can leave the marker or color
---   blank, to be automatically inferred.
-data AutoSeries
-AS :: Map Double (Set Double) -> AutoPointStyle -> AutoSeries
-[_asItems] :: AutoSeries -> Map Double (Set Double)
-[_asStyle] :: AutoSeries -> AutoPointStyle
-asItems :: Lens' AutoSeries (Map Double (Set Double))
-asStyle :: Lens' AutoSeries AutoPointStyle
-
 -- | A set of default point styles
 defaultStyles :: Set PointStyle
 
--- | Turn an <a>AutoSeries</a> into a <a>Series</a>, assigning styles from
+-- | Turn an <a>AutoSeries</a> into a <a>SeriesF</a>, assigning styles from
 --   a pre-specified "shuffled" order.
 fromAutoSeries :: [AutoSeries] -> [Series]
 
--- | Turn an <a>AutoSeries</a> into a <a>Series</a>, drawing styles
+-- | Turn an <a>AutoSeries</a> into a <a>SeriesF</a>, drawing styles
 --   randomly in IO.
 fromAutoSeriesIO :: [AutoSeries] -> IO [Series]
 
--- | Turn an <a>AutoSeries</a> into a <a>Series</a>, shuffling the default
+-- | Turn an <a>AutoSeries</a> into a <a>SeriesF</a>, shuffling the default
 --   styles in a deterministic way from a given seed.
 fromAutoSeries_ :: StdGen -> [AutoSeries] -> [Series]
 
@@ -203,7 +208,7 @@ listSeries :: Foldable t => t Double -> AutoPointStyle -> AutoSeries
 -- | Construct a series from any foldable container of x-y tuples.
 tupleSeries :: Foldable t => t (Double, Double) -> AutoPointStyle -> AutoSeries
 
--- | Convert from a <a>Series</a> back into an <a>AutoSeries</a> with
+-- | Convert from a <a>SeriesF</a> back into an <a>AutoSeries</a> with
 --   settings given.
 autoSeries :: Series -> AutoSeries
 
@@ -214,9 +219,6 @@ funcSeries :: Foldable t => (Double -> Double) -> t Double -> AutoPointStyle -> 
 -- | <tt><a>enumRange</a> n (<a>R</a> a b)</tt> generates a list of
 --   <tt>n</tt> equally spaced values between <tt>a</tt> and <tt>b</tt>.
 enumRange :: Fractional a => Int -> Range a -> [a]
-instance GHC.Show.Show Interactive.Plot.Series.AutoSeries
-instance Data.Default.Class.Default Interactive.Plot.Series.AutoPointStyle
-instance GHC.Show.Show Interactive.Plot.Series.AutoPointStyle
 
 
 -- | Run plots interactively in the terminal.
