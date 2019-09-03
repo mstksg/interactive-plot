@@ -323,12 +323,17 @@ enumRange :: Fractional a => Int -> Range a -> [a]
 
 -- | Run plots interactively in the terminal.
 module Interactive.Plot.Run
+runPlot :: PlotOpts -> Maybe String -> [Series] -> IO ()
+runPlotAuto :: PlotOpts -> Maybe String -> [AutoSeries] -> IO ()
 
 -- | Interactively plot serieses in the terminal.
-runPlot :: PlotOpts -> [Series] -> IO ()
-
--- | Interactively plot auto-serieses in the terminal.
-runPlotAuto :: PlotOpts -> [AutoSeries] -> IO ()
+runPlotDynamic :: PlotOpts -> IO PlotData -> IO ()
+data PlotData
+PlotData :: Maybe String -> [Series] -> PlotData
+[_pdTitle] :: PlotData -> Maybe String
+[_pdSerieses] :: PlotData -> [Series]
+pdTitle :: Lens' PlotData (Maybe String)
+pdSerieses :: Lens' PlotData [Series]
 instance Interactive.Plot.Run.HasPlotState Interactive.Plot.Run.PlotState
 
 
