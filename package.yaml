@@ -21,15 +21,6 @@ description:         Please see the README on GitHub at <https://github.com/mstk
 
 dependencies:
 - base >= 4.7 && < 5
-- vty
-- transformers
-- containers
-- MonadRandom
-- mtl
-- microlens
-- microlens-platform
-- microlens-th
-- data-default
 
 ghc-options:
 - -Wall
@@ -39,6 +30,16 @@ ghc-options:
 
 library:
   source-dirs: src
+  dependencies:
+  - MonadRandom
+  - containers
+  - data-default
+  - microlens
+  - microlens-platform
+  - microlens-th
+  - mtl
+  - transformers
+  - vty
 
 executables:
   interactive-plot-demo:

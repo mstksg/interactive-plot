@@ -29,10 +29,11 @@ module Interactive.Plot.Core (
     Coord(..), cX, cY
   , Range(.., RAbout), rMin, rMax, rSize, rMid, _rSize
   , Auto(..)
-  , PointStyleF(.., PointStyle), PointStyle, AutoPointStyle, psMarker, psColor
-  , SeriesF(..), Series, AutoSeries, sItems, sStyle, toCoordMap, fromCoordMap
+  , PointStyle, pattern PointStyle, PointStyleF(..), AutoPointStyle, psMarker, psColor, _psMarker, _psColor
+  , Series, SeriesF(..), AutoSeries, sItems, sStyle, toCoordMap, fromCoordMap
   , Alignment(..)
   , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange, poRange, poAutoMethod
+  , defaultPlotOpts
   , renderPlot
   -- * Internal
   , plotRange
@@ -74,12 +75,18 @@ instance Ord OrdColor where
             Color240 d -> compare c d
 
 -- | An ordered pair in @a@.
-data Coord a = C { _cX :: a   -- ^ Access @x@.  For getter/setter lenses, see 'cX'.
-                 , _cY :: a   -- ^ Access @y@.  For getter/setter lenses, see 'cY'.
+data Coord a = C { _cX :: a   -- ^ Access @x@.
+                 , _cY :: a   -- ^ Access @y@.
                  }
   deriving (Show, Functor, Foldable, Traversable, Eq, Ord)
 
-makeLenses ''Coord
+-- | Getter/setter lens to the @x@ position in a 'Coord'.
+cX :: Lens' (Coord a) a
+cX f (C x y) = (`C` y) <$> f x
+
+-- | Getter/setter lens to the @x@ position in a 'Coord'.
+cY :: Lens' (Coord a) a
+cY f (C x y) = (C x) <$> f y
 
 instance Num a => Num (Coord a) where
     (+) = liftA2 (+)
@@ -94,14 +101,26 @@ instance Applicative Coord where
     pure x = C x x
     C f g <*> C x y = C (f x) (g y)
 
+-- | Basically the same as @Reader 'Bool'@, for @x@ and @y@.
+instance Monad Coord where
+    return x = C x x
+    C x y >>= f = C (_cX (f x)) (_cY (f y))
+
 -- | A specification for a range.  Using 'R', contains the minimum and
 -- maximum.  Using 'RAbout', contains the midpoint and size.
-data Range a = R { _rMin :: a     -- ^ Minimum of range.  For getter/setter lens, see 'rMin'.
-                 , _rMax :: a     -- ^ Maximum of range.  For getter/setter lens, see 'rMax'.
+data Range a = R { _rMin :: a     -- ^ Minimum of range.
+                 , _rMax :: a     -- ^ Maximum of range.
                  }
   deriving (Show, Functor, Foldable, Traversable)
 
-makeLenses ''Range
+
+-- | Getter/setter lens to the minimum value in a 'Range'.
+rMin :: Lens' (Range a) a
+rMin f (R x y) = (`R` y) <$> f x
+
+-- | Getter/setter lens to the maximum value in a 'Range'.
+rMax :: Lens' (Range a) a
+rMax f (R x y) = (R x) <$> f y
 
 -- | "Zipping" behavior on minimum and maximum
 instance Applicative Range where
@@ -114,6 +133,10 @@ instance Monad Range where
     return x = R x x
     R x y >>= f = R (_rMin (f x)) (_rMax (f y))
 
+-- | Used to specify fields in 'PointStyle' and 'Series': Use 'Auto' for
+-- automatic inference, and 'Given' to provide a specific value.
+--
+-- Its 'Semigroup' instance keeps the last 'Given'.
 data Auto a = Auto | Given a
   deriving (Show, Eq, Ord, Generic)
 
@@ -125,22 +148,40 @@ instance Semigroup (Auto a) where
 instance Monoid (Auto a) where
     mempty = Auto
 
--- | Specification of a style for a point.
+-- | A parameterized version of 'PointStyle' to unify functions in
+-- "Interactive.Plot.Series".
+--
+-- Mainly you will be using either 'PointStyle' or 'AutoPointStyle'.
 data PointStyleF f = PointStyleF
-      { _psMarkerF :: f Char  -- ^ Marker cahracter.  For getter/setter lens, see 'psMarker'.
-      , _psColorF  :: f Color -- ^ Marker color.  For getter/setter lens, see 'psColor'.
+      { _psMarkerF :: f Char  -- ^ Marker character.
+      , _psColorF  :: f Color -- ^ Marker color.
       }
   deriving (Generic)
 
-makeLenses ''PointStyleF
+-- | Getter/setter lens to the marker field of a 'PointStyleF'
+psMarkerF :: Lens' (PointStyleF f) (f Char)
+psMarkerF f (PointStyleF x y) = (`PointStyleF` y) <$> f x
+
+-- | Getter/setter lens to the color field of a 'PointStyleF'
+psColorF :: Lens' (PointStyleF f) (f Color)
+psColorF f (PointStyleF x y) = (PointStyleF x) <$> f y
 
 -- | Specification of a style for a point.
+--
+-- Construct this wiht the 'PointStyle' pattern synonym.
 type PointStyle     = PointStyleF Identity
 
 -- | A version of 'PointStyle' where you can leave the marker or color
 -- blank, to be automatically inferred.
+--
+-- You can construct this with the 'PointStyleF' constructor.
+--
+-- It has a very convenient 'Monoid'/'Semigroup' instance: 'mempty' gives
+-- a 'PointStyle' where every field is 'Auto', and '<>' combines
+-- 'PointStyle's field-by-field, keeping the last 'Given'.
 type AutoPointStyle = PointStyleF Auto
 
+-- | Pattern synonym/constructor for 'PointStyle'.
 pattern PointStyle :: Char -> Color -> PointStyle
 pattern PointStyle { _psMarker, _psColor } = PointStyleF (Identity _psMarker) (Identity _psColor)
 {-# COMPLETE PointStyle #-}
@@ -163,44 +204,71 @@ psMarker = psMarkerF . _Identity
 psColor :: Lens' PointStyle Color
 psColor = psColorF . _Identity
 
--- | Data for a single series: contains the coordinate map with the point
--- style for the series.
-data SeriesF f = Series { _sItems :: M.Map Double (S.Set Double)
-                        , _sStyle :: PointStyleF f
+-- | A parameterized version of 'Series' to unify functions in
+-- "Interactive.Plot.Series".
+--
+-- Mainly you will be using either 'Series' or 'AutoSeries'.
+data SeriesF f = Series { _sItems :: M.Map Double (S.Set Double)    -- ^ A map of @x@ positions to @y@ points at that position
+                        , _sStyle :: PointStyleF f                  -- ^ The style of points.  For 'Series', this is 'PointStyle'; for 'AutoSeries', this is 'AutoPointStyle'.
                         }
 
-
+-- | Data for a single series: contains the coordinate map with the point
+-- style for the series.
 type Series = SeriesF Identity
 
 -- | A version of 'Series' where you can leave the marker or color blank,
 -- to be automatically inferred.
 type AutoSeries = SeriesF Auto
 
+-- | Getter/setter lens to the items field of a 'SeriesF'
+sItems :: Lens' (SeriesF f) (M.Map Double (S.Set Double))
+sItems f (Series x y) = (`Series` y) <$> f x
 
-makeLenses ''SeriesF
+-- | Getter/setter lens to the style field of a 'SeriesF'
+--
+-- @
+-- 'sStyle' :: Lens 'Series' 'PointStyle'
+-- 'sStyle' :: Lens 'AutoSeries' 'AutoPointStyle'
+-- @
+sStyle :: Lens' (SeriesF f) (PointStyleF f)
+sStyle f (Series x y) = (Series x) <$> f y
 
 -- | Alignment specification.
 data Alignment = ALeft
                | ACenter
                | ARight
 
+-- | Options used for running the plot interactively in a terminal.
 data PlotOpts = PO
-    { _poTermRatio   :: Double               -- ^ character width ratio of terminal (H/W)
-    , _poAspectRatio :: Maybe Double         -- ^ plot aspect ratio (H/W)
-    , _poXRange      :: Maybe (Range Double) -- ^ X Range.  Use 'Nothing' for automatic.
-    , _poYRange      :: Maybe (Range Double) -- ^ Y Range.  Use 'Nothing' for automatic.
-    , _poAutoMethod  :: Maybe StdGen         -- ^ How to fill in missing values.  'Nothing' for IO, 'Just' for deterministic seed.
+    { _poTermRatio   :: Double               -- ^ character width ratio of terminal (H/W).  Default is 2.1.
+    , _poAspectRatio :: Maybe Double         -- ^ plot aspect ratio (H/W). Use 'Nothing' for automatic. Default is @'Just' 1@.
+    , _poXRange      :: Maybe (Range Double) -- ^ X Range.  Use 'Nothing' for automatic.  Default is 'Nothing'.
+    , _poYRange      :: Maybe (Range Double) -- ^ Y Range.  Use 'Nothing' for automatic.  Default is 'Nothing'.
+    , _poAutoMethod  :: Maybe StdGen         -- ^ How to fill in missing
+                                             -- values when run using
+                                             -- 'Interactive.Plot.Run.runPlotAuto'.
+                                             -- 'Nothing' for IO, 'Just'
+                                             -- for deterministic seed.
+                                             -- Ignored when using
+                                             -- 'Interactive.Plot.Run.runPlot'.
+                                             -- Default is an arbitrarily
+                                             -- selected seed.
     }
 
 makeLenses ''PlotOpts
 
+-- | Sensible defaults for most terminals.
+defaultPlotOpts :: PlotOpts
+defaultPlotOpts = PO
+    { _poTermRatio   = 2.1
+    , _poAspectRatio = Just 1
+    , _poXRange      = Nothing
+    , _poYRange      = Nothing
+    , _poAutoMethod  = Just $ mkStdGen 28922710942259
+    }
+
 instance Default PlotOpts where
-    def = PO { _poTermRatio   = 2.1
-             , _poAspectRatio = Just 1
-             , _poXRange      = Nothing
-             , _poYRange      = Nothing
-             , _poAutoMethod  = Just $ mkStdGen 28922710942259
-             }
+    def = defaultPlotOpts
 
 -- | An alternative "constructor" for 'R', which takes a midpoint and size
 -- instead of a min and max.

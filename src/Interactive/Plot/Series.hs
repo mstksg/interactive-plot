@@ -93,7 +93,8 @@ combinePointStyles ms cs = combine `S.map` S.cartesianProduct ms cs
 -- | Turn an 'AutoSeries' into a 'Series', assigning styles from
 -- a pre-specified "shuffled" order.
 fromAutoSeries :: [AutoSeries] -> [Series]
-fromAutoSeries = fromAutoSeries_ $ mkStdGen 28922710942259
+fromAutoSeries = fromAutoSeries_ $
+    fromMaybe (mkStdGen 28922710942259) (_poAutoMethod defaultPlotOpts)
 
 -- | Turn an 'AutoSeries' into a 'Series', drawing styles randomly in IO.
 fromAutoSeriesIO :: [AutoSeries] -> IO [Series]
