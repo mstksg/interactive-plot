@@ -17,30 +17,38 @@ module Interactive.Plot.Core
 data Coord a
 C :: a -> a -> Coord a
 
--- | Access <tt>x</tt>. For getter/setter lenses, see <a>cX</a>.
+-- | Access <tt>x</tt>.
 [_cX] :: Coord a -> a
 
--- | Access <tt>y</tt>. For getter/setter lenses, see <a>cY</a>.
+-- | Access <tt>y</tt>.
 [_cY] :: Coord a -> a
-cX :: forall a_afT4. Lens' (Coord a_afT4) a_afT4
-cY :: forall a_afT4. Lens' (Coord a_afT4) a_afT4
+
+-- | Getter/setter lens to the <tt>x</tt> position in a <a>Coord</a>.
+cX :: Lens' (Coord a) a
+
+-- | Getter/setter lens to the <tt>x</tt> position in a <a>Coord</a>.
+cY :: Lens' (Coord a) a
 
 -- | A specification for a range. Using <a>R</a>, contains the minimum and
 --   maximum. Using <a>RAbout</a>, contains the midpoint and size.
 data Range a
 R :: a -> a -> Range a
 
--- | Minimum of range. For getter/setter lens, see <a>rMin</a>.
+-- | Minimum of range.
 [_rMin] :: Range a -> a
 
--- | Maximum of range. For getter/setter lens, see <a>rMax</a>.
+-- | Maximum of range.
 [_rMax] :: Range a -> a
 
 -- | An alternative "constructor" for <a>R</a>, which takes a midpoint and
 --   size instead of a min and max.
 pattern RAbout :: Fractional a => a -> a -> Range a
-rMin :: forall a_ai4N. Lens' (Range a_ai4N) a_ai4N
-rMax :: forall a_ai4N. Lens' (Range a_ai4N) a_ai4N
+
+-- | Getter/setter lens to the minimum value in a <a>Range</a>.
+rMin :: Lens' (Range a) a
+
+-- | Getter/setter lens to the maximum value in a <a>Range</a>.
+rMax :: Lens' (Range a) a
 
 -- | Lens into the size of a <a>Range</a> Modifying this size results in a
 --   scaling about the midpoint of the range.
@@ -66,6 +74,12 @@ rMid :: Fractional a => Lens' (Range a) a
 
 -- | A version of <a>_rSize</a> that works for any instance of <a>Num</a>.
 _rSize :: Num a => Range a -> a
+
+-- | Used to specify fields in <a>PointStyle</a> and <a>SeriesF</a>: Use
+--   <a>Auto</a> for automatic inference, and <a>Given</a> to provide a
+--   specific value.
+--   
+--   Its <a>Semigroup</a> instance keeps the last <a>Given</a>.
 data Auto a
 Auto :: Auto a
 Given :: a -> Auto a
@@ -86,16 +100,21 @@ pattern PointStyle :: Char -> Color -> PointStyle
 data PointStyleF f
 PointStyleF :: f Char -> f Color -> PointStyleF f
 
--- | Marker cahracter. For getter/setter lens, see <a>psMarker</a>.
+-- | Marker character.
 [_psMarkerF] :: PointStyleF f -> f Char
 
--- | Marker color. For getter/setter lens, see <a>psColor</a>.
+-- | Marker color.
 [_psColorF] :: PointStyleF f -> f Color
 
 -- | A version of <a>PointStyle</a> where you can leave the marker or color
 --   blank, to be automatically inferred.
 --   
 --   You can construct this with the <a>PointStyleF</a> constructor.
+--   
+--   It has a very convenient 'Monoid'/'Semigroup' instance: <a>mempty</a>
+--   gives a <a>PointStyle</a> where every field is <a>Auto</a>, and
+--   <a>&lt;&gt;</a> combines <a>PointStyle</a>s field-by-field, keeping
+--   the last <a>Given</a>.
 type AutoPointStyle = PointStyleF Auto
 psMarker :: Lens' PointStyle Char
 psColor :: Lens' PointStyle Color
@@ -106,17 +125,34 @@ _psColor :: PointStyle -> Color
 --   style for the series.
 type Series = SeriesF Identity
 
--- | A parameterized version of <a>SeriesF</a>
+-- | A parameterized version of <a>SeriesF</a> to unify functions in
+--   <a>Interactive.Plot.Series</a>.
+--   
+--   Mainly you will be using either <a>SeriesF</a> or <a>AutoSeries</a>.
 data SeriesF f
 Series :: Map Double (Set Double) -> PointStyleF f -> SeriesF f
+
+-- | A map of <tt>x</tt> positions to <tt>y</tt> points at that position
 [_sItems] :: SeriesF f -> Map Double (Set Double)
+
+-- | The style of points. For <a>SeriesF</a>, this is <a>PointStyle</a>;
+--   for <a>AutoSeries</a>, this is <a>AutoPointStyle</a>.
 [_sStyle] :: SeriesF f -> PointStyleF f
 
 -- | A version of <a>SeriesF</a> where you can leave the marker or color
 --   blank, to be automatically inferred.
 type AutoSeries = SeriesF Auto
-sItems :: forall f_ajKd. Lens' (SeriesF f_ajKd) (Map Double (Set Double))
-sStyle :: forall f_ajKd f_ak4m. Lens (SeriesF f_ajKd) (SeriesF f_ak4m) (PointStyleF f_ajKd) (PointStyleF f_ak4m)
+
+-- | Getter/setter lens to the items field of a <a>SeriesF</a>
+sItems :: Lens' (SeriesF f) (Map Double (Set Double))
+
+-- | Getter/setter lens to the style field of a <a>SeriesF</a>
+--   
+--   <pre>
+--   <a>sStyle</a> :: Lens <a>SeriesF</a> <a>PointStyle</a>
+--   <a>sStyle</a> :: Lens <a>AutoSeries</a> <a>AutoPointStyle</a>
+--   </pre>
+sStyle :: Lens' (SeriesF f) (PointStyleF f)
 
 -- | Turn a set of coordinates into a map of x's to the y's found in the
 --   set.
@@ -183,25 +219,15 @@ OC :: Color -> OrdColor
 -- | Render a single according to a <a>PointStyle</a>.
 renderPoint :: PointStyle -> Image
 instance Data.Default.Class.Default Interactive.Plot.Core.PlotOpts
-instance (GHC.Classes.Eq (f GHC.Types.Char), GHC.Classes.Eq (f Graphics.Vty.Attributes.Color.Color)) => GHC.Classes.Eq (Interactive.Plot.Core.PointStyleF f)
-instance (GHC.Base.Semigroup (f GHC.Types.Char), GHC.Base.Semigroup (f Graphics.Vty.Attributes.Color.Color)) => GHC.Base.Semigroup (Interactive.Plot.Core.PointStyleF f)
-instance (GHC.Base.Monoid (f GHC.Types.Char), GHC.Base.Monoid (f Graphics.Vty.Attributes.Color.Color)) => GHC.Base.Monoid (Interactive.Plot.Core.PointStyleF f)
-instance (GHC.Classes.Ord (f GHC.Types.Char), GHC.Classes.Ord (f Interactive.Plot.Core.OrdColor), GHC.Base.Functor f, GHC.Classes.Eq (f Graphics.Vty.Attributes.Color.Color)) => GHC.Classes.Ord (Interactive.Plot.Core.PointStyleF f)
 instance GHC.Generics.Generic (Interactive.Plot.Core.PointStyleF f)
 instance GHC.Generics.Generic (Interactive.Plot.Core.Auto a)
 instance GHC.Classes.Ord a => GHC.Classes.Ord (Interactive.Plot.Core.Auto a)
 instance GHC.Classes.Eq a => GHC.Classes.Eq (Interactive.Plot.Core.Auto a)
 instance GHC.Show.Show a => GHC.Show.Show (Interactive.Plot.Core.Auto a)
-instance GHC.Base.Semigroup (Interactive.Plot.Core.Auto a)
-instance GHC.Base.Monoid (Interactive.Plot.Core.Auto a)
-instance GHC.Base.Applicative Interactive.Plot.Core.Range
-instance GHC.Base.Monad Interactive.Plot.Core.Range
 instance Data.Traversable.Traversable Interactive.Plot.Core.Range
 instance Data.Foldable.Foldable Interactive.Plot.Core.Range
 instance GHC.Base.Functor Interactive.Plot.Core.Range
 instance GHC.Show.Show a => GHC.Show.Show (Interactive.Plot.Core.Range a)
-instance GHC.Num.Num a => GHC.Num.Num (Interactive.Plot.Core.Coord a)
-instance GHC.Base.Applicative Interactive.Plot.Core.Coord
 instance GHC.Classes.Ord a => GHC.Classes.Ord (Interactive.Plot.Core.Coord a)
 instance GHC.Classes.Eq a => GHC.Classes.Eq (Interactive.Plot.Core.Coord a)
 instance Data.Traversable.Traversable Interactive.Plot.Core.Coord
@@ -209,6 +235,17 @@ instance Data.Foldable.Foldable Interactive.Plot.Core.Coord
 instance GHC.Base.Functor Interactive.Plot.Core.Coord
 instance GHC.Show.Show a => GHC.Show.Show (Interactive.Plot.Core.Coord a)
 instance GHC.Classes.Eq Interactive.Plot.Core.OrdColor
+instance (GHC.Classes.Eq (f GHC.Types.Char), GHC.Classes.Eq (f Graphics.Vty.Attributes.Color.Color)) => GHC.Classes.Eq (Interactive.Plot.Core.PointStyleF f)
+instance (GHC.Base.Semigroup (f GHC.Types.Char), GHC.Base.Semigroup (f Graphics.Vty.Attributes.Color.Color)) => GHC.Base.Semigroup (Interactive.Plot.Core.PointStyleF f)
+instance (GHC.Base.Monoid (f GHC.Types.Char), GHC.Base.Monoid (f Graphics.Vty.Attributes.Color.Color)) => GHC.Base.Monoid (Interactive.Plot.Core.PointStyleF f)
+instance (GHC.Classes.Ord (f GHC.Types.Char), GHC.Classes.Ord (f Interactive.Plot.Core.OrdColor), GHC.Base.Functor f, GHC.Classes.Eq (f Graphics.Vty.Attributes.Color.Color)) => GHC.Classes.Ord (Interactive.Plot.Core.PointStyleF f)
+instance GHC.Base.Semigroup (Interactive.Plot.Core.Auto a)
+instance GHC.Base.Monoid (Interactive.Plot.Core.Auto a)
+instance GHC.Base.Applicative Interactive.Plot.Core.Range
+instance GHC.Base.Monad Interactive.Plot.Core.Range
+instance GHC.Num.Num a => GHC.Num.Num (Interactive.Plot.Core.Coord a)
+instance GHC.Base.Applicative Interactive.Plot.Core.Coord
+instance GHC.Base.Monad Interactive.Plot.Core.Coord
 instance GHC.Classes.Ord Interactive.Plot.Core.OrdColor
 
 
