@@ -71,6 +71,18 @@ Auto :: Auto a
 Given :: a -> Auto a
 
 -- | Specification of a style for a point.
+--   
+--   Construct this wiht the <a>PointStyle</a> pattern synonym.
+type PointStyle = PointStyleF Identity
+
+-- | Pattern synonym/constructor for <a>PointStyle</a>.
+pattern PointStyle :: Char -> Color -> PointStyle
+
+-- | A parameterized version of <a>PointStyle</a> to unify functions in
+--   <a>Interactive.Plot.Series</a>.
+--   
+--   Mainly you will be using either <a>PointStyle</a> or
+--   <a>AutoPointStyle</a>.
 data PointStyleF f
 PointStyleF :: f Char -> f Color -> PointStyleF f
 
@@ -79,24 +91,24 @@ PointStyleF :: f Char -> f Color -> PointStyleF f
 
 -- | Marker color. For getter/setter lens, see <a>psColor</a>.
 [_psColorF] :: PointStyleF f -> f Color
-pattern PointStyle :: Char -> Color -> PointStyle
-
--- | Specification of a style for a point.
-type PointStyle = PointStyleF Identity
 
 -- | A version of <a>PointStyle</a> where you can leave the marker or color
 --   blank, to be automatically inferred.
+--   
+--   You can construct this with the <a>PointStyleF</a> constructor.
 type AutoPointStyle = PointStyleF Auto
 psMarker :: Lens' PointStyle Char
 psColor :: Lens' PointStyle Color
 
 -- | Data for a single series: contains the coordinate map with the point
 --   style for the series.
+type Series = SeriesF Identity
+
+-- | A parameterized version of <a>SeriesF</a>
 data SeriesF f
 Series :: Map Double (Set Double) -> PointStyleF f -> SeriesF f
 [_sItems] :: SeriesF f -> Map Double (Set Double)
 [_sStyle] :: SeriesF f -> PointStyleF f
-type Series = SeriesF Identity
 
 -- | A version of <a>SeriesF</a> where you can leave the marker or color
 --   blank, to be automatically inferred.
@@ -120,23 +132,27 @@ data Alignment
 ALeft :: Alignment
 ACenter :: Alignment
 ARight :: Alignment
+
+-- | Options used for running the plot interactively in a terminal.
 data PlotOpts
 PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> Maybe StdGen -> PlotOpts
 
--- | character width ratio of terminal (H/W)
+-- | character width ratio of terminal (H/W). Default is 2.1.
 [_poTermRatio] :: PlotOpts -> Double
 
--- | plot aspect ratio (H/W)
+-- | plot aspect ratio (H/W). Use <a>Nothing</a> for automatic. Default is
+--   <tt><a>Just</a> 1</tt>.
 [_poAspectRatio] :: PlotOpts -> Maybe Double
 
--- | X Range. Use <a>Nothing</a> for automatic.
+-- | X Range. Use <a>Nothing</a> for automatic. Default is <a>Nothing</a>.
 [_poXRange] :: PlotOpts -> Maybe (Range Double)
 
--- | Y Range. Use <a>Nothing</a> for automatic.
+-- | Y Range. Use <a>Nothing</a> for automatic. Default is <a>Nothing</a>.
 [_poYRange] :: PlotOpts -> Maybe (Range Double)
 
--- | How to fill in missing values. <a>Nothing</a> for IO, <a>Just</a> for
---   deterministic seed.
+-- | How to fill in missing values when run using <a>runPlotAuto</a>.
+--   <a>Nothing</a> for IO, <a>Just</a> for deterministic seed. Ignored
+--   when using <a>runPlot</a>. Default is an arbitrarily selected seed.
 [_poAutoMethod] :: PlotOpts -> Maybe StdGen
 poTermRatio :: Lens' PlotOpts Double
 poAspectRatio :: Lens' PlotOpts (Maybe Double)
@@ -146,6 +162,9 @@ poYRange :: Lens' PlotOpts (Maybe (Range Double))
 -- | Lens into a <a>PlotOpts</a> getting its range X and range Y settings.
 poRange :: Lens' PlotOpts (Maybe (Range Double), Maybe (Range Double))
 poAutoMethod :: Lens' PlotOpts (Maybe StdGen)
+
+-- | Sensible defaults for most terminals.
+defaultPlotOpts :: PlotOpts
 
 -- | Render serieses based on a display region and plot axis ranges.
 renderPlot :: Coord (Range Int) -> Coord (Range Double) -> [Series] -> [Image]
