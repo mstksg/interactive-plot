@@ -36,11 +36,11 @@ import           Lens.Micro
 import qualified Data.Set              as S
 
 -- | Construct a series from any foldable container of y-values.
-listSeries :: Foldable t => t Double -> AutoPointStyle -> AutoSeries
+listSeries :: Foldable t => t Double -> PointStyleF f -> SeriesF f
 listSeries xs = Series (toCoordMap . S.fromList . zipWith C [0..] . toList $ xs)
 
 -- | Construct a series from any foldable container of x-y tuples.
-tupleSeries :: Foldable t => t (Double, Double) -> AutoPointStyle -> AutoSeries
+tupleSeries :: Foldable t => t (Double, Double) -> PointStyleF f -> SeriesF f
 tupleSeries xs = Series (toCoordMap . S.fromList . foldMap ((:[]) . uncurry C) $ xs)
 
 -- | Convert from a 'Series' back into an 'AutoSeries' with settings given.
@@ -66,8 +66,8 @@ funcSeries
     :: Foldable t
     => (Double -> Double)
     -> t Double
-    -> AutoPointStyle
-    -> AutoSeries
+    -> PointStyleF f
+    -> SeriesF f
 funcSeries f xs = tupleSeries [ (x, f x) | x <- toList xs ]
 
 -- | A set of default markers.

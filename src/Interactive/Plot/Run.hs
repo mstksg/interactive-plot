@@ -77,7 +77,9 @@ runPlotAuto
     :: PlotOpts
     -> [AutoSeries]
     -> IO ()
-runPlotAuto po = runPlot po . fromAutoSeries
+runPlotAuto po s = case po ^. poAutoMethod of
+    Nothing -> runPlot po =<< fromAutoSeriesIO s
+    Just g  -> runPlot po (fromAutoSeries_ g s)
 
 -- | Interactively plot serieses in the terminal.
 runPlot

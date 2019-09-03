@@ -32,7 +32,7 @@ module Interactive.Plot.Core (
   , PointStyleF(.., PointStyle), PointStyle, AutoPointStyle, psMarker, psColor
   , SeriesF(..), Series, AutoSeries, sItems, sStyle, toCoordMap, fromCoordMap
   , Alignment(..)
-  , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange, poRange
+  , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange, poRange, poAutoMethod
   , renderPlot
   -- * Internal
   , plotRange
@@ -42,6 +42,7 @@ module Interactive.Plot.Core (
 
 import           Control.Applicative
 import           Control.Monad
+import           Control.Monad.Random
 import           Data.Coerce
 import           Data.Default
 import           Data.Foldable
@@ -133,6 +134,7 @@ data PointStyleF f = PointStyleF
 
 makeLenses ''PointStyleF
 
+-- | Specification of a style for a point.
 type PointStyle     = PointStyleF Identity
 
 -- | A version of 'PointStyle' where you can leave the marker or color
@@ -187,6 +189,7 @@ data PlotOpts = PO
     , _poAspectRatio :: Maybe Double         -- ^ plot aspect ratio (H/W)
     , _poXRange      :: Maybe (Range Double) -- ^ X Range.  Use 'Nothing' for automatic.
     , _poYRange      :: Maybe (Range Double) -- ^ Y Range.  Use 'Nothing' for automatic.
+    , _poAutoMethod  :: Maybe StdGen         -- ^ How to fill in missing values.  'Nothing' for IO, 'Just' for deterministic seed.
     }
 
 makeLenses ''PlotOpts
@@ -196,6 +199,7 @@ instance Default PlotOpts where
              , _poAspectRatio = Just 1
              , _poXRange      = Nothing
              , _poYRange      = Nothing
+             , _poAutoMethod  = Just $ mkStdGen 28922710942259
              }
 
 -- | An alternative "constructor" for 'R', which takes a midpoint and size
@@ -242,7 +246,7 @@ within x r = x >= r ^. rMin && x <= r ^. rMax
 
 -- | Lens into a 'PlotOpts' getting its range X and range Y settings.
 poRange :: Lens' PlotOpts (Maybe (Range Double), Maybe (Range Double))
-poRange f (PO r a x y) = uncurry (PO r a) <$> f (x, y)
+poRange f (PO r a x y s) = (\(x', y') -> PO r a x' y' s) <$> f (x, y)
 
 -- | Compute plot axis ranges based on a list of points and the size of the
 -- display region.
