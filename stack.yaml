@@ -35,10 +35,16 @@ resolver: nightly-2019-09-02
 #  - wai
 packages:
 - .
+
 # Dependency packages to be pulled from upstream that are not in the resolver
 # using the same syntax as the packages field.
 # (e.g., acme-missiles-0.3)
-# extra-deps: []
+extra-deps:
+- github: i-am-tom/higgledy
+  commit: 476d73a92e3ef6e1dc879555d751f877b0f91de8
+# - QuickCheck-2.12.6.1
+
+# allow-newer: true
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

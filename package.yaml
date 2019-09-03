@@ -30,6 +30,8 @@ dependencies:
 - microlens-platform
 - microlens-th
 - data-default
+- barbies
+- higgledy
 
 ghc-options:
 - -Wall

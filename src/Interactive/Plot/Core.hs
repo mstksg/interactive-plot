@@ -1,6 +1,7 @@
 {-# LANGUAGE ApplicativeDo     #-}
 {-# LANGUAGE DeriveFoldable    #-}
 {-# LANGUAGE DeriveFunctor     #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE PatternSynonyms   #-}
@@ -22,8 +23,8 @@
 module Interactive.Plot.Core (
     Coord(..), cX, cY
   , Range(.., RAbout), rMin, rMax, rSize, rMid, _rSize
-  , PointStyle(..), psMarker, psColor
-  , Series(..), sItems, sStyle, toCoordMap, fromCoordMap
+  , PointStyle(..), PointStyleF, psMarker, psColor
+  , Series(..), SeriesF, sItems, sStyle, toCoordMap, fromCoordMap
   , Alignment(..)
   , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange, poRange
   , renderPlot
@@ -39,8 +40,10 @@ import           Data.Coerce
 import           Data.Default
 import           Data.Foldable
 import           Data.Functor.Compose
+import           Data.Generic.HKD
 import           Data.Maybe
 import           Data.Ord
+import           GHC.Generics         (Generic)
 import           Graphics.Vty
 import           Lens.Micro
 import           Lens.Micro.TH
@@ -109,20 +112,25 @@ data PointStyle = PointStyle
       { _psMarker :: Char  -- ^ Marker cahracter.  For getter/setter lens, see 'psMarker'.
       , _psColor  :: Color -- ^ Marker color.  For getter/setter lens, see 'psColor'.
       }
-  deriving (Eq)
+  deriving (Generic, Eq, Show)
 
 makeLenses ''PointStyle
 
 instance Ord PointStyle where
     compare = comparing $ \case PointStyle m1 c1 -> (m1, OC c1)
 
+type PointStyleF f = HKD PointStyle f
+
 -- | Data for a single series: contains the coordinate map with the point
 -- style for the series.
 data Series = Series { _sItems :: M.Map Double (S.Set Double)
                      , _sStyle :: PointStyle
                      }
+  deriving (Generic, Eq, Ord, Show)
 
 makeLenses ''Series
+
+type SeriesF f = HKD Series f
 
 -- | Alignment specification.
 data Alignment = ALeft

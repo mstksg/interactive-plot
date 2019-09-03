@@ -3,7 +3,21 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages: []
+packages:
+- completed:
+    size: 12056
+    url: https://github.com/i-am-tom/higgledy/archive/476d73a92e3ef6e1dc879555d751f877b0f91de8.tar.gz
+    cabal-file:
+      size: 1903
+      sha256: 171ffa8bccb93b2a6f369cd55e98734baf2237d4a36731ac9806979fd6327cdb
+    name: higgledy
+    version: 0.3.0.0
+    sha256: e69fc4b640b4b313e580dd08d88cdc640a69dc5d706eaf2e8882f1eb3ba66aab
+    pantry-tree:
+      size: 759
+      sha256: b46d808ef80b1a9c0b1bbd3cd36212932baed6c0b67742ddf4ba804ea7a7b290
+  original:
+    url: https://github.com/i-am-tom/higgledy/archive/476d73a92e3ef6e1dc879555d751f877b0f91de8.tar.gz
 snapshots:
 - completed:
     size: 528436

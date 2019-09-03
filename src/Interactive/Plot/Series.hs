@@ -1,6 +1,9 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE TemplateHaskell  #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE OverloadedLabels    #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
 
 -- |
 -- Module      : Interative.Plot.Series
@@ -13,8 +16,8 @@
 --
 -- Create common serieses.
 module Interactive.Plot.Series (
-    AutoPointStyle(..), apsMarker, apsColor
-  , AutoSeries(..), asItems, asStyle
+    AutoPointStyle
+  , AutoSeries
   , defaultStyles
   -- * Create a 'Series' from an 'AutoSeries'.
   , fromAutoSeries
@@ -32,7 +35,9 @@ import           Control.Monad.Random
 import           Control.Monad.State
 import           Data.Default
 import           Data.Foldable
+import           Data.Generic.HKD
 import           Data.Maybe
+import           Data.Monoid           (Last(..))
 import           Graphics.Vty
 import           Interactive.Plot.Core
 import           Lens.Micro
@@ -40,41 +45,45 @@ import           Lens.Micro.TH
 import qualified Data.Map              as M
 import qualified Data.Set              as S
 
--- | A version of 'PointStyle' where you can leave the marker or color
--- blank, to be automatically inferred.
-data AutoPointStyle = APS
-    { _apsMarker :: Maybe Char
-    , _apsColor  :: Maybe Color
-    }
-  deriving Show
+type AutoPointStyle = PointStyleF Last
 
-makeLenses ''AutoPointStyle
+-- -- | A version of 'PointStyle' where you can leave the marker or color
+-- -- blank, to be automatically inferred.
+-- data AutoPointStyle = APS
+--     { _apsMarker :: Maybe Char
+--     , _apsColor  :: Maybe Color
+--     }
+--   deriving Show
 
-instance Default AutoPointStyle where
-    def = APS Nothing Nothing
+-- makeLenses ''AutoPointStyle
+
+-- instance Default AutoPointStyle where
+--     def = APS Nothing Nothing
 
 -- | A version of 'Series' where you can leave the marker or color blank,
 -- to be automatically inferred.
-data AutoSeries = AS { _asItems :: M.Map Double (S.Set Double)
-                     , _asStyle :: AutoPointStyle
-                     }
-  deriving Show
+-- data AutoSeries = AS { _asItems :: M.Map Double (S.Set Double)
+--                      , _asStyle :: AutoPointStyle
+--                      }
+--   deriving Show
 
-makeLenses ''AutoSeries
+-- makeLenses ''AutoSeries
+
+type AutoSeries = SeriesF Last
 
 -- | Construct a series from any foldable container of y-values.
-listSeries :: Foldable t => t Double -> AutoPointStyle -> AutoSeries
-listSeries xs = AS (toCoordMap . S.fromList . zipWith C [0..] . toList $ xs)
+listSeries :: (Foldable t, Applicative f) => t Double -> PointStyleF f -> SeriesF f
+listSeries xs = build @Series (pure (toCoordMap . S.fromList . zipWith C [0..] . toList $ xs))
+              . construct
 
 -- | Construct a series from any foldable container of x-y tuples.
-tupleSeries :: Foldable t => t (Double, Double) -> AutoPointStyle -> AutoSeries
-tupleSeries xs = AS (toCoordMap . S.fromList . foldMap ((:[]) . uncurry C) $ xs)
+tupleSeries :: (Foldable t, Applicative f) => t (Double, Double) -> PointStyleF f -> SeriesF f
+tupleSeries xs = build @Series (pure (toCoordMap . S.fromList . foldMap ((:[]) . uncurry C) $ xs))
+               . construct
 
 -- | Convert from a 'Series' back into an 'AutoSeries' with settings given.
 autoSeries :: Series -> AutoSeries
-autoSeries s = AS (s ^. sItems)
-             $ APS (Just (s ^. sStyle . psMarker))
-                   (Just (s ^. sStyle . psColor))
+autoSeries = deconstruct
 
 -- | @'enumRange' n ('R' a b)@ generates a list of @n@ equally spaced values
 -- between @a@ and @b@.
@@ -132,30 +141,33 @@ fromAutoSeries_ :: StdGen -> [AutoSeries] -> [Series]
 fromAutoSeries_ seed = flip evalRand seed . flip evalStateT S.empty . mapM go
   where
     go :: AutoSeries -> StateT (S.Set PointStyle) (Rand StdGen) Series
-    go (AS is ps) = Series is <$> pickPs
+    go s = Series items <$> pickPs
       where
-        pickPs = case ps of
-          APS Nothing Nothing -> do
+        items = fromMaybe M.empty . getLast $ s ^. field @"_sItems"
+    -- go (Series is ps) = Series is <$> pickPs
+    --   where
+        pickPs = case s ^. field @"_sStyle" of
+          PointStyle Nothing Nothing -> do
             picked <- get
             samp <- sampleSet $ defaultStyles S.\\ picked
             case samp of
               Nothing -> fromJust <$> sampleSet defaultStyles
               Just s  -> s <$ put (s `S.insert` picked)
-          APS (Just m) Nothing  -> do
+          PointStyle (Just m) Nothing  -> do
             picked <- get
             let allDefaults = combinePointStyles (S.singleton m) defaultColors
             samp <- sampleSet $ allDefaults S.\\ picked
             case samp of
               Nothing -> fromJust <$> sampleSet allDefaults
               Just s  -> s <$ put (s `S.insert` picked)
-          APS Nothing (Just c) -> do
+          PointStyle Nothing (Just c) -> do
             picked <- get
             let allDefaults = combinePointStyles defaultMarkers (S.singleton (OC c))
             samp <- sampleSet $ allDefaults S.\\ picked
             case samp of
               Nothing -> fromJust <$> sampleSet allDefaults
               Just s  -> s <$ put (s `S.insert` picked)
-          APS (Just m) (Just c) -> pure $ PointStyle m c
+          PointStyle (Just m) (Just c) -> pure $ PointStyle m c
 
 sampleSet
     :: (MonadRandom m)
