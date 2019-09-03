@@ -182,7 +182,7 @@ ARight :: Alignment
 
 -- | Options used for running the plot interactively in a terminal.
 data PlotOpts
-PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> Maybe StdGen -> PlotOpts
+PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> Maybe StdGen -> Bool -> PlotOpts
 
 -- | character width ratio of terminal (H/W). Default is 2.1.
 [_poTermRatio] :: PlotOpts -> Double
@@ -201,6 +201,10 @@ PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> 
 --   <a>Nothing</a> for IO, <a>Just</a> for deterministic seed. Ignored
 --   when using <a>runPlot</a>. Default is an arbitrarily selected seed.
 [_poAutoMethod] :: PlotOpts -> Maybe StdGen
+
+-- | Whether or not to show help box initially. Box can always be toggled
+--   with <tt>?</tt>. (Default is <a>True</a>)
+[_poHelp] :: PlotOpts -> Bool
 poTermRatio :: Lens' PlotOpts Double
 poAspectRatio :: Lens' PlotOpts (Maybe Double)
 poXRange :: Lens' PlotOpts (Maybe (Range Double))
@@ -209,6 +213,7 @@ poYRange :: Lens' PlotOpts (Maybe (Range Double))
 -- | Lens into a <a>PlotOpts</a> getting its range X and range Y settings.
 poRange :: Lens' PlotOpts (Maybe (Range Double), Maybe (Range Double))
 poAutoMethod :: Lens' PlotOpts (Maybe StdGen)
+poHelp :: Lens' PlotOpts Bool
 
 -- | Sensible defaults for most terminals.
 defaultPlotOpts :: PlotOpts
@@ -324,6 +329,7 @@ runPlot :: PlotOpts -> [Series] -> IO ()
 
 -- | Interactively plot auto-serieses in the terminal.
 runPlotAuto :: PlotOpts -> [AutoSeries] -> IO ()
+instance Interactive.Plot.Run.HasPlotState Interactive.Plot.Run.PlotState
 
 
 -- | Simple interactive rendering of plots
