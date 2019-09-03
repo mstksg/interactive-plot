@@ -9,36 +9,97 @@
 @package interactive-plot
 @version 0.1.0.0
 
+
+-- | Core rendering functionality for the library.
 module Interactive.Plot.Core
+
+-- | An ordered pair in <tt>a</tt>.
 data Coord a
 C :: a -> a -> Coord a
+
+-- | Access <tt>x</tt>. For getter/setter lenses, see <a>cX</a>.
 [_cX] :: Coord a -> a
+
+-- | Access <tt>y</tt>. For getter/setter lenses, see <a>cY</a>.
 [_cY] :: Coord a -> a
-cX :: forall a_af4i. Lens' (Coord a_af4i) a_af4i
-cY :: forall a_af4i. Lens' (Coord a_af4i) a_af4i
+cX :: forall a_afLm. Lens' (Coord a_afLm) a_afLm
+cY :: forall a_afLm. Lens' (Coord a_afLm) a_afLm
+
+-- | A specification for a range. Using <a>R</a>, contains the minimum and
+--   maximum. Using <a>RAbout</a>, contains the midpoint and size.
 data Range a
 R :: a -> a -> Range a
+
+-- | Minimum of range. For getter/setter lens, see <a>rMin</a>.
 [_rMin] :: Range a -> a
+
+-- | Maximum of range. For getter/setter lens, see <a>rMax</a>.
 [_rMax] :: Range a -> a
-rMin :: forall a_agVC. Lens' (Range a_agVC) a_agVC
-rMax :: forall a_agVC. Lens' (Range a_agVC) a_agVC
+
+-- | An alternative "constructor" for <a>R</a>, which takes a midpoint and
+--   size instead of a min and max.
+pattern RAbout :: Fractional a => a -> a -> Range a
+rMin :: forall a_ahWP. Lens' (Range a_ahWP) a_ahWP
+rMax :: forall a_ahWP. Lens' (Range a_ahWP) a_ahWP
+
+-- | Lens into the size of a <a>Range</a> Modifying this size results in a
+--   scaling about the midpoint of the range.
+--   
+--   <pre>
+--   view rSize (R 2 4)
+--   -- 2
+--   over rSize (* 2) (R 2 4)
+--   -- R 1 5
+--   </pre>
 rSize :: Fractional a => Lens' (Range a) a
+
+-- | Lens into the midpoint of a <a>Range</a>. Modifying this midpoint
+--   shifts the range to a new midpoint, preserving the size.
+--   
+--   <pre>
+--   view rMid (R 2 4)
+--   -- 3
+--   over rMid (+ 3) (R 2 4)
+--   -- R 5 7
+--   </pre>
 rMid :: Fractional a => Lens' (Range a) a
+
+-- | A version of <a>_rSize</a> that works for any instance of <a>Num</a>.
 _rSize :: Num a => Range a -> a
+
+-- | Specification of a style for a point.
 data PointStyle
 PointStyle :: Char -> Color -> PointStyle
+
+-- | Marker cahracter. For getter/setter lens, see <a>psMarker</a>.
 [_psMarker] :: PointStyle -> Char
+
+-- | Marker color. For getter/setter lens, see <a>psColor</a>.
 [_psColor] :: PointStyle -> Color
 psMarker :: Lens' PointStyle Char
 psColor :: Lens' PointStyle Color
+
+-- | Data for a single series: contains the coordinate map with the point
+--   style for the series.
 data Series
 Series :: Map Double (Set Double) -> PointStyle -> Series
 [_sItems] :: Series -> Map Double (Set Double)
 [_sStyle] :: Series -> PointStyle
 sItems :: Lens' Series (Map Double (Set Double))
 sStyle :: Lens' Series PointStyle
-coordMap :: Ord a => Lens' (Map a (Set a)) [Coord a]
-toCoordMap :: Ord a => [Coord a] -> Map a (Set a)
+
+-- | Turn a set of coordinates into a map of x's to the y's found in the
+--   set.
+--   
+--   Note that this forms an isomorphism with <a>fromCoordMap</a>.
+toCoordMap :: Eq a => Set (Coord a) -> Map a (Set a)
+
+-- | Convert a map of x's to y's into a set of x-y coordinates.
+--   
+--   Note that this forms an isomorphism with <a>toCoordMap</a>.
+fromCoordMap :: Map a (Set a) -> Set (Coord a)
+
+-- | Alignment specification.
 data Alignment
 ALeft :: Alignment
 ACenter :: Alignment
@@ -51,28 +112,47 @@ PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> 
 
 -- | plot aspect ratio (H/W)
 [_poAspectRatio] :: PlotOpts -> Maybe Double
+
+-- | X Range. Use <a>Nothing</a> for automatic.
 [_poXRange] :: PlotOpts -> Maybe (Range Double)
+
+-- | Y Range. Use <a>Nothing</a> for automatic.
 [_poYRange] :: PlotOpts -> Maybe (Range Double)
 poTermRatio :: Lens' PlotOpts Double
 poAspectRatio :: Lens' PlotOpts (Maybe Double)
 poXRange :: Lens' PlotOpts (Maybe (Range Double))
 poYRange :: Lens' PlotOpts (Maybe (Range Double))
+
+-- | Lens into a <a>PlotOpts</a> getting its range X and range Y settings.
 poRange :: Lens' PlotOpts (Maybe (Range Double), Maybe (Range Double))
+
+-- | Render serieses based on a display region and plot axis ranges.
 renderPlot :: Coord (Range Int) -> Coord (Range Double) -> [Series] -> [Image]
+
+-- | Compute plot axis ranges based on a list of points and the size of the
+--   display region.
+plotRange :: PlotOpts -> Coord (Range Int) -> [Series] -> Coord (Range Double)
+
+-- | Newtype wrapper providing an <a>Ord</a> instance for <a>Color</a>.
 newtype OrdColor
 OC :: Color -> OrdColor
 [getOC] :: OrdColor -> Color
-plotRange :: PlotOpts -> Coord (Range Int) -> [Series] -> Coord (Range Double)
+
+-- | Render a single according to a <a>PointStyle</a>.
+renderPoint :: PointStyle -> Image
 instance Data.Default.Class.Default Interactive.Plot.Core.PlotOpts
 instance GHC.Classes.Ord Interactive.Plot.Core.PointStyle
 instance GHC.Classes.Eq Interactive.Plot.Core.PointStyle
 instance GHC.Base.Applicative Interactive.Plot.Core.Range
+instance GHC.Base.Monad Interactive.Plot.Core.Range
 instance Data.Traversable.Traversable Interactive.Plot.Core.Range
 instance Data.Foldable.Foldable Interactive.Plot.Core.Range
 instance GHC.Base.Functor Interactive.Plot.Core.Range
 instance GHC.Show.Show a => GHC.Show.Show (Interactive.Plot.Core.Range a)
 instance GHC.Num.Num a => GHC.Num.Num (Interactive.Plot.Core.Coord a)
 instance GHC.Base.Applicative Interactive.Plot.Core.Coord
+instance GHC.Classes.Ord a => GHC.Classes.Ord (Interactive.Plot.Core.Coord a)
+instance GHC.Classes.Eq a => GHC.Classes.Eq (Interactive.Plot.Core.Coord a)
 instance Data.Traversable.Traversable Interactive.Plot.Core.Coord
 instance Data.Foldable.Foldable Interactive.Plot.Core.Coord
 instance GHC.Base.Functor Interactive.Plot.Core.Coord
@@ -80,38 +160,74 @@ instance GHC.Show.Show a => GHC.Show.Show (Interactive.Plot.Core.Coord a)
 instance GHC.Classes.Eq Interactive.Plot.Core.OrdColor
 instance GHC.Classes.Ord Interactive.Plot.Core.OrdColor
 
+
+-- | Create common serieses.
 module Interactive.Plot.Series
+
+-- | A version of <a>PointStyle</a> where you can leave the marker or color
+--   blank, to be automatically inferred.
 data AutoPointStyle
 APS :: Maybe Char -> Maybe Color -> AutoPointStyle
 [_apsMarker] :: AutoPointStyle -> Maybe Char
 [_apsColor] :: AutoPointStyle -> Maybe Color
 apsMarker :: Lens' AutoPointStyle (Maybe Char)
 apsColor :: Lens' AutoPointStyle (Maybe Color)
+
+-- | A version of <a>Series</a> where you can leave the marker or color
+--   blank, to be automatically inferred.
 data AutoSeries
 AS :: Map Double (Set Double) -> AutoPointStyle -> AutoSeries
 [_asItems] :: AutoSeries -> Map Double (Set Double)
 [_asStyle] :: AutoSeries -> AutoPointStyle
 asItems :: Lens' AutoSeries (Map Double (Set Double))
 asStyle :: Lens' AutoSeries AutoPointStyle
+
+-- | A set of default point styles
 defaultStyles :: Set PointStyle
+
+-- | Turn an <a>AutoSeries</a> into a <a>Series</a>, assigning styles from
+--   a pre-specified "shuffled" order.
 fromAutoSeries :: [AutoSeries] -> [Series]
+
+-- | Turn an <a>AutoSeries</a> into a <a>Series</a>, drawing styles
+--   randomly in IO.
+fromAutoSeriesIO :: [AutoSeries] -> IO [Series]
+
+-- | Turn an <a>AutoSeries</a> into a <a>Series</a>, shuffling the default
+--   styles in a deterministic way from a given seed.
+fromAutoSeries_ :: StdGen -> [AutoSeries] -> [Series]
+
+-- | Construct a series from any foldable container of y-values.
 listSeries :: Foldable t => t Double -> AutoPointStyle -> AutoSeries
+
+-- | Construct a series from any foldable container of x-y tuples.
 tupleSeries :: Foldable t => t (Double, Double) -> AutoPointStyle -> AutoSeries
+
+-- | Convert from a <a>Series</a> back into an <a>AutoSeries</a> with
+--   settings given.
 autoSeries :: Series -> AutoSeries
+
+-- | Construct a series from a function x to y, given a foldable container
+--   of x values.
 funcSeries :: Foldable t => (Double -> Double) -> t Double -> AutoPointStyle -> AutoSeries
-enumRange :: Int -> Range Double -> [Double]
+
+-- | <tt><a>enumRange</a> n (<a>R</a> a b)</tt> generates a list of
+--   <tt>n</tt> equally spaced values between <tt>a</tt> and <tt>b</tt>.
+enumRange :: Fractional a => Int -> Range a -> [a]
 instance GHC.Show.Show Interactive.Plot.Series.AutoSeries
 instance Data.Default.Class.Default Interactive.Plot.Series.AutoPointStyle
 instance GHC.Show.Show Interactive.Plot.Series.AutoPointStyle
 
+
+-- | Run plots interactively in the terminal.
 module Interactive.Plot.Run
+
+-- | Interactively plot serieses in the terminal.
 runPlot :: PlotOpts -> [Series] -> IO ()
+
+-- | Interactively plot auto-serieses in the terminal.
 runPlotAuto :: PlotOpts -> [AutoSeries] -> IO ()
 
+
+-- | Simple interactive rendering of plots
 module Interactive.Plot
-
--- | A class for types with a default value.
-class Default a
-
--- | The default value for this type.
-def :: Default a => a
