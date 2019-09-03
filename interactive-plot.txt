@@ -99,6 +99,8 @@ PointStyleF :: f Char -> f Color -> PointStyleF f
 type AutoPointStyle = PointStyleF Auto
 psMarker :: Lens' PointStyle Char
 psColor :: Lens' PointStyle Color
+_psMarker :: PointStyle -> Char
+_psColor :: PointStyle -> Color
 
 -- | Data for a single series: contains the coordinate map with the point
 --   style for the series.
