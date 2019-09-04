@@ -2,10 +2,10 @@
 -- See Hoogle, http://www.haskell.org/hoogle/
 
 
--- | Quick time series plotting meant to be used interactively in ghci
+-- | Interactive quick time series plotting
 --   
---   Please see the README on GitHub at
---   <a>https://github.com/mstksg/interactive-plot#readme</a>
+--   Quick time series terminal plotting for data exploration/in ghci. See
+--   documentation for <a>Interactive.Plot</a>.
 @package interactive-plot
 @version 0.1.0.0
 
@@ -288,9 +288,6 @@ instance GHC.Classes.Ord Interactive.Plot.Core.OrdColor
 -- | Create common serieses.
 module Interactive.Plot.Series
 
--- | A set of default point styles
-defaultStyles :: Set PointStyle
-
 -- | Turn an <a>AutoSeries</a> into a <a>SeriesF</a>, assigning styles from
 --   a pre-specified "shuffled" order.
 fromAutoSeries :: [AutoSeries] -> [Series]
@@ -342,14 +339,21 @@ funcSeries :: Foldable t => (Double -> Double) -> t Double -> PointStyleF f -> S
 --   <tt>n</tt> equally spaced values between <tt>a</tt> and <tt>b</tt>.
 enumRange :: Fractional a => Int -> Range a -> [a]
 
+-- | A set of default point styles
+defaultStyles :: Set PointStyle
+
 
 -- | Run plots interactively in the terminal.
 module Interactive.Plot.Run
 
 -- | Display fixed plot and title interactively.
+--   
+--   See <a>runPlotDynamic</a> for more control.
 runPlot :: PlotOpts -> Maybe String -> Maybe Image -> [Series] -> IO ()
 
 -- | Display fixed plot and title interactively, filling in default values.
+--   
+--   See <a>runPlotDynamic</a> for more control.
 runPlotAuto :: PlotOpts -> Maybe String -> Maybe Image -> [AutoSeries] -> IO ()
 
 -- | Display a series of plots (<tt>[<a>SeriesF</a>]</tt>) with a time
@@ -387,3 +391,282 @@ instance Interactive.Plot.Run.HasPlotState Interactive.Plot.Run.PlotState
 
 -- | Simple interactive rendering of plots
 module Interactive.Plot
+
+-- | Display fixed plot and title interactively.
+--   
+--   See <a>runPlotDynamic</a> for more control.
+runPlot :: PlotOpts -> Maybe String -> Maybe Image -> [Series] -> IO ()
+
+-- | Display fixed plot and title interactively, filling in default values.
+--   
+--   See <a>runPlotDynamic</a> for more control.
+runPlotAuto :: PlotOpts -> Maybe String -> Maybe Image -> [AutoSeries] -> IO ()
+
+-- | Display a series of plots (<tt>[<a>SeriesF</a>]</tt>) with a time
+--   delay between each one. Will quit when the last plot is displayed. Use
+--   <tt>lastForever</tt> on the input list to repeat the last item
+--   indefinitely, or <a>cycle</a> to cycle through the list forever.
+--   
+--   Note that this behavior is pretty simple; more advanced functionality
+--   can be achieved with <a>runPlotDynamic</a> directly.
+animatePlot :: PlotOpts -> Double -> Maybe String -> Maybe Image -> [[Series]] -> IO ()
+
+-- | Options used for running the plot interactively in a terminal.
+data PlotOpts
+PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> Maybe StdGen -> Bool -> Maybe Double -> PlotOpts
+
+-- | character width ratio of terminal (H/W). Default is 2.1.
+[_poTermRatio] :: PlotOpts -> Double
+
+-- | plot aspect ratio (H/W). Use <a>Nothing</a> for automatic. Default is
+--   <tt><a>Just</a> 1</tt>.
+[_poAspectRatio] :: PlotOpts -> Maybe Double
+
+-- | X Range. Use <a>Nothing</a> for automatic. Default is <a>Nothing</a>.
+[_poXRange] :: PlotOpts -> Maybe (Range Double)
+
+-- | Y Range. Use <a>Nothing</a> for automatic. Default is <a>Nothing</a>.
+[_poYRange] :: PlotOpts -> Maybe (Range Double)
+
+-- | How to fill in missing values when run using <a>runPlotAuto</a>.
+--   <a>Nothing</a> for IO, <a>Just</a> for deterministic seed. Ignored
+--   when using <a>runPlot</a>. Default is an arbitrarily selected seed.
+[_poAutoMethod] :: PlotOpts -> Maybe StdGen
+
+-- | Whether or not to show help box initially. Box can always be toggled
+--   with <tt>?</tt>. (Default is <a>True</a>)
+[_poHelp] :: PlotOpts -> Bool
+
+-- | Updates per second; <a>Nothing</a> for no updates. Use <a>poDelay</a>
+--   to treat this as a microsecond delay instead. (default:
+--   <a>Nothing</a>)
+[_poFramerate] :: PlotOpts -> Maybe Double
+poTermRatio :: Lens' PlotOpts Double
+poAspectRatio :: Lens' PlotOpts (Maybe Double)
+poXRange :: Lens' PlotOpts (Maybe (Range Double))
+poYRange :: Lens' PlotOpts (Maybe (Range Double))
+
+-- | Lens into a <a>PlotOpts</a> getting its range X and range Y settings.
+poRange :: Lens' PlotOpts (Maybe (Range Double), Maybe (Range Double))
+poAutoMethod :: Lens' PlotOpts (Maybe StdGen)
+poHelp :: Lens' PlotOpts Bool
+poFramerate :: Lens' PlotOpts (Maybe Double)
+
+-- | Lens into microsecond delay between frames, specified by a
+--   <a>PlotOpts</a>.
+poDelay :: Lens' PlotOpts (Maybe Int)
+
+-- | Sensible defaults for most terminals.
+defaultPlotOpts :: PlotOpts
+
+-- | Used to specify fields in <a>PointStyle</a> and <a>SeriesF</a>: Use
+--   <a>Auto</a> for automatic inference, and <a>Given</a> to provide a
+--   specific value.
+--   
+--   Its <a>Semigroup</a> instance keeps the last <a>Given</a>.
+data Auto a
+Auto :: Auto a
+Given :: a -> Auto a
+
+-- | Data for a single series: contains the coordinate map with the point
+--   style for the series.
+type Series = SeriesF Identity
+
+-- | A version of <a>SeriesF</a> where you can leave the marker or color
+--   blank, to be automatically inferred.
+type AutoSeries = SeriesF Auto
+
+-- | A parameterized version of <a>SeriesF</a> to unify functions in
+--   <a>Interactive.Plot.Series</a>.
+--   
+--   Mainly you will be using either <a>SeriesF</a> or <a>AutoSeries</a>.
+data SeriesF f
+Series :: Map Double (Set Double) -> PointStyleF f -> SeriesF f
+
+-- | A map of <tt>x</tt> positions to <tt>y</tt> points at that position
+[_sItems] :: SeriesF f -> Map Double (Set Double)
+
+-- | The style of points. For <a>SeriesF</a>, this is <a>PointStyle</a>;
+--   for <a>AutoSeries</a>, this is <a>AutoPointStyle</a>.
+[_sStyle] :: SeriesF f -> PointStyleF f
+
+-- | Getter/setter lens to the items field of a <a>SeriesF</a>
+sItems :: Lens' (SeriesF f) (Map Double (Set Double))
+
+-- | Getter/setter lens to the style field of a <a>SeriesF</a>
+--   
+--   <pre>
+--   <a>sStyle</a> :: Lens <a>SeriesF</a> <a>PointStyle</a>
+--   <a>sStyle</a> :: Lens <a>AutoSeries</a> <a>AutoPointStyle</a>
+--   </pre>
+sStyle :: Lens' (SeriesF f) (PointStyleF f)
+
+-- | Construct a series from any foldable container of y-values. The
+--   x-values are automatically assigned to 0, 1, 2, 3 ... etc.
+--   
+--   Note that this is polymorphic over both <a>PointStyle</a> and
+--   <a>AutoPointStyle</a>:
+--   
+--   <pre>
+--   <a>listSeries</a> :: Foldable t =&gt; t Double -&gt; <a>PointStyle</a> -&gt; <a>SeriesF</a>
+--   <a>listSeries</a> :: Foldable t =&gt; t Double -&gt; <a>AutoPointStyle</a> -&gt; <a>AutoSeries</a>
+--   </pre>
+listSeries :: Foldable t => t Double -> PointStyleF f -> SeriesF f
+
+-- | Construct a series from any foldable container of x-y tuples.
+--   
+--   Note that this is polymorphic over both <a>PointStyle</a> and
+--   <a>AutoPointStyle</a>:
+--   
+--   <pre>
+--   <a>tupleSeries</a> :: Foldable t =&gt; t (Double, Double) -&gt; <a>PointStyle</a> -&gt; <a>SeriesF</a>
+--   <a>tupleSeries</a> :: Foldable t =&gt; t (Double, Double) -&gt; <a>AutoPointStyle</a> -&gt; <a>AutoSeries</a>
+--   </pre>
+tupleSeries :: Foldable t => t (Double, Double) -> PointStyleF f -> SeriesF f
+
+-- | Construct a series from a function x to y, given a foldable container
+--   of x values.
+--   
+--   Note that this is polymorphic over both <a>PointStyle</a> and
+--   <a>AutoPointStyle</a>:
+--   
+--   <pre>
+--   <a>funcSeries</a> :: Foldable t =&gt; (Double -&gt; Double) -&gt; t Double -&gt; <a>PointStyle</a> -&gt; <a>SeriesF</a>
+--   <a>funcSeries</a> :: Foldable t =&gt; (Double -&gt; Double) -&gt; t Double -&gt; <a>AutoPointStyle</a> -&gt; <a>AutoSeries</a>
+--   </pre>
+funcSeries :: Foldable t => (Double -> Double) -> t Double -> PointStyleF f -> SeriesF f
+
+-- | <tt><a>enumRange</a> n (<a>R</a> a b)</tt> generates a list of
+--   <tt>n</tt> equally spaced values between <tt>a</tt> and <tt>b</tt>.
+enumRange :: Fractional a => Int -> Range a -> [a]
+
+-- | Turn a set of coordinates into a map of x's to the y's found in the
+--   set.
+--   
+--   Note that this forms an isomorphism with <a>fromCoordMap</a>.
+toCoordMap :: Eq a => Set (Coord a) -> Map a (Set a)
+
+-- | Convert a map of x's to y's into a set of x-y coordinates.
+--   
+--   Note that this forms an isomorphism with <a>toCoordMap</a>.
+fromCoordMap :: Map a (Set a) -> Set (Coord a)
+
+-- | Turn an <a>AutoSeries</a> into a <a>SeriesF</a>, assigning styles from
+--   a pre-specified "shuffled" order.
+fromAutoSeries :: [AutoSeries] -> [Series]
+
+-- | Turn an <a>AutoSeries</a> into a <a>SeriesF</a>, drawing styles
+--   randomly in IO.
+fromAutoSeriesIO :: [AutoSeries] -> IO [Series]
+
+-- | Turn an <a>AutoSeries</a> into a <a>SeriesF</a>, shuffling the default
+--   styles in a deterministic way from a given seed.
+fromAutoSeries_ :: StdGen -> [AutoSeries] -> [Series]
+
+-- | Specification of a style for a point.
+--   
+--   Construct this wiht the <a>PointStyle</a> pattern synonym.
+type PointStyle = PointStyleF Identity
+
+-- | Pattern synonym/constructor for <a>PointStyle</a>.
+--   
+--   This comes with two record fields, <a>_psMarker</a> and
+--   <a>_psColor</a>.
+pattern PointStyle :: Char -> Color -> PointStyle
+_psMarker :: PointStyle -> Char
+_psColor :: PointStyle -> Color
+
+-- | A version of <a>PointStyle</a> where you can leave the marker or color
+--   blank, to be automatically inferred.
+--   
+--   You can construct this with the <a>PointStyleF</a> constructor.
+--   
+--   It has a very convenient 'Monoid'/'Semigroup' instance: <a>mempty</a>
+--   gives a <a>PointStyle</a> where every field is <a>Auto</a>, and
+--   <a>&lt;&gt;</a> combines <a>PointStyle</a>s field-by-field, keeping
+--   the last <a>Given</a>.
+type AutoPointStyle = PointStyleF Auto
+
+-- | A parameterized version of <a>PointStyle</a> to unify functions in
+--   <a>Interactive.Plot.Series</a>.
+--   
+--   Mainly you will be using either <a>PointStyle</a> or
+--   <a>AutoPointStyle</a>.
+data PointStyleF f
+PointStyleF :: f Char -> f Color -> PointStyleF f
+
+-- | Marker character.
+[_psMarkerF] :: PointStyleF f -> f Char
+
+-- | Marker color.
+[_psColorF] :: PointStyleF f -> f Color
+psMarker :: Lens' PointStyle Char
+psColor :: Lens' PointStyle Color
+
+-- | An ordered pair in <tt>a</tt>.
+data Coord a
+C :: a -> a -> Coord a
+
+-- | Access <tt>x</tt>.
+[_cX] :: Coord a -> a
+
+-- | Access <tt>y</tt>.
+[_cY] :: Coord a -> a
+
+-- | Getter/setter lens to the <tt>x</tt> position in a <a>Coord</a>.
+cX :: Lens' (Coord a) a
+
+-- | Getter/setter lens to the <tt>x</tt> position in a <a>Coord</a>.
+cY :: Lens' (Coord a) a
+
+-- | A specification for a range. Using <a>R</a>, contains the minimum and
+--   maximum. Using <a>RAbout</a>, contains the midpoint and size.
+data Range a
+R :: a -> a -> Range a
+
+-- | Minimum of range.
+[_rMin] :: Range a -> a
+
+-- | Maximum of range.
+[_rMax] :: Range a -> a
+
+-- | An alternative "constructor" for <a>R</a>, which takes a midpoint and
+--   size instead of a min and max.
+--   
+--   This comes with record fields, <a>_rMid</a> and <a>_rSize'</a>.
+pattern RAbout :: Fractional a => a -> a -> Range a
+_rMid :: () => Range a -> Fractional a -> a
+_rSize' :: () => Range a -> Fractional a -> a
+
+-- | Getter/setter lens to the minimum value in a <a>Range</a>.
+rMin :: Lens' (Range a) a
+
+-- | Getter/setter lens to the maximum value in a <a>Range</a>.
+rMax :: Lens' (Range a) a
+
+-- | Lens into the size of a <a>Range</a> Modifying this size results in a
+--   scaling about the midpoint of the range.
+--   
+--   <pre>
+--   view rSize (R 2 4)
+--   -- 2
+--   over rSize (* 2) (R 2 4)
+--   -- R 1 5
+--   </pre>
+rSize :: Fractional a => Lens' (Range a) a
+
+-- | Lens into the midpoint of a <a>Range</a>. Modifying this midpoint
+--   shifts the range to a new midpoint, preserving the size.
+--   
+--   <pre>
+--   view rMid (R 2 4)
+--   -- 3
+--   over rMid (+ 3) (R 2 4)
+--   -- R 5 7
+--   </pre>
+rMid :: Fractional a => Lens' (Range a) a
+
+-- | Gets the size of a <a>Range</a>.
+--   
+--   A version of <a>_rSize'</a> that works for any instance of <a>Num</a>.
+_rSize :: Num a => Range a -> a
