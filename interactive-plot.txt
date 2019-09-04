@@ -182,7 +182,7 @@ ARight :: Alignment
 
 -- | Options used for running the plot interactively in a terminal.
 data PlotOpts
-PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> Maybe StdGen -> Bool -> PlotOpts
+PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> Maybe StdGen -> Bool -> Maybe Double -> PlotOpts
 
 -- | character width ratio of terminal (H/W). Default is 2.1.
 [_poTermRatio] :: PlotOpts -> Double
@@ -205,6 +205,11 @@ PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> 
 -- | Whether or not to show help box initially. Box can always be toggled
 --   with <tt>?</tt>. (Default is <a>True</a>)
 [_poHelp] :: PlotOpts -> Bool
+
+-- | Updates per second; <a>Nothing</a> for no updates. Use <a>poDelay</a>
+--   to treat this as a microsecond delay instead. (default:
+--   <a>Nothing</a>)
+[_poFramerate] :: PlotOpts -> Maybe Double
 poTermRatio :: Lens' PlotOpts Double
 poAspectRatio :: Lens' PlotOpts (Maybe Double)
 poXRange :: Lens' PlotOpts (Maybe (Range Double))
@@ -214,6 +219,11 @@ poYRange :: Lens' PlotOpts (Maybe (Range Double))
 poRange :: Lens' PlotOpts (Maybe (Range Double), Maybe (Range Double))
 poAutoMethod :: Lens' PlotOpts (Maybe StdGen)
 poHelp :: Lens' PlotOpts Bool
+poFramerate :: Lens' PlotOpts (Maybe Double)
+
+-- | Lens into microsecond delay between frames, specified by a
+--   <a>PlotOpts</a>.
+poDelay :: Lens' PlotOpts (Maybe Int)
 
 -- | Sensible defaults for most terminals.
 defaultPlotOpts :: PlotOpts
@@ -232,8 +242,14 @@ OC :: Color -> OrdColor
 
 -- | Render a single according to a <a>PointStyle</a>.
 renderPoint :: PointStyle -> Image
+
+-- | Used for <a>poDelay</a>: a lens into a microsecond delay given a
+--   framerate. Should technically be an isomorphism, but this isn't
+--   supported by microlens.
+hzToDelay :: Lens' (Maybe Double) (Maybe Int)
 instance Data.Default.Class.Default Interactive.Plot.Core.PlotOpts
 instance GHC.Generics.Generic (Interactive.Plot.Core.PointStyleF f)
+instance GHC.Base.Functor Interactive.Plot.Core.Auto
 instance GHC.Generics.Generic (Interactive.Plot.Core.Auto a)
 instance GHC.Classes.Ord a => GHC.Classes.Ord (Interactive.Plot.Core.Auto a)
 instance GHC.Classes.Eq a => GHC.Classes.Eq (Interactive.Plot.Core.Auto a)
@@ -249,12 +265,18 @@ instance Data.Foldable.Foldable Interactive.Plot.Core.Coord
 instance GHC.Base.Functor Interactive.Plot.Core.Coord
 instance GHC.Show.Show a => GHC.Show.Show (Interactive.Plot.Core.Coord a)
 instance GHC.Classes.Eq Interactive.Plot.Core.OrdColor
+instance (GHC.Show.Show (f GHC.Types.Char), GHC.Show.Show (f Graphics.Vty.Attributes.Color.Color)) => GHC.Show.Show (Interactive.Plot.Core.PointStyleF f)
 instance (GHC.Classes.Eq (f GHC.Types.Char), GHC.Classes.Eq (f Graphics.Vty.Attributes.Color.Color)) => GHC.Classes.Eq (Interactive.Plot.Core.PointStyleF f)
+instance (GHC.Show.Show (f GHC.Types.Char), GHC.Show.Show (f Graphics.Vty.Attributes.Color.Color)) => GHC.Show.Show (Interactive.Plot.Core.SeriesF f)
 instance (GHC.Base.Semigroup (f GHC.Types.Char), GHC.Base.Semigroup (f Graphics.Vty.Attributes.Color.Color)) => GHC.Base.Semigroup (Interactive.Plot.Core.PointStyleF f)
 instance (GHC.Base.Monoid (f GHC.Types.Char), GHC.Base.Monoid (f Graphics.Vty.Attributes.Color.Color)) => GHC.Base.Monoid (Interactive.Plot.Core.PointStyleF f)
 instance (GHC.Classes.Ord (f GHC.Types.Char), GHC.Classes.Ord (f Interactive.Plot.Core.OrdColor), GHC.Base.Functor f, GHC.Classes.Eq (f Graphics.Vty.Attributes.Color.Color)) => GHC.Classes.Ord (Interactive.Plot.Core.PointStyleF f)
 instance GHC.Base.Semigroup (Interactive.Plot.Core.Auto a)
 instance GHC.Base.Monoid (Interactive.Plot.Core.Auto a)
+instance GHC.Base.Applicative Interactive.Plot.Core.Auto
+instance GHC.Base.Monad Interactive.Plot.Core.Auto
+instance GHC.Base.Alternative Interactive.Plot.Core.Auto
+instance GHC.Base.MonadPlus Interactive.Plot.Core.Auto
 instance GHC.Base.Applicative Interactive.Plot.Core.Range
 instance GHC.Base.Monad Interactive.Plot.Core.Range
 instance GHC.Num.Num a => GHC.Num.Num (Interactive.Plot.Core.Coord a)
@@ -325,24 +347,41 @@ enumRange :: Fractional a => Int -> Range a -> [a]
 module Interactive.Plot.Run
 
 -- | Display fixed plot and title interactively.
-runPlot :: PlotOpts -> Maybe String -> [Series] -> IO ()
+runPlot :: PlotOpts -> Maybe String -> Maybe Image -> [Series] -> IO ()
 
 -- | Display fixed plot and title interactively, filling in default values.
-runPlotAuto :: PlotOpts -> Maybe String -> [AutoSeries] -> IO ()
+runPlotAuto :: PlotOpts -> Maybe String -> Maybe Image -> [AutoSeries] -> IO ()
+
+-- | Display a series of plots (<tt>[<a>SeriesF</a>]</tt>) with a time
+--   delay between each one. Will quit when the last plot is displayed. Use
+--   <tt>lastForever</tt> on the input list to repeat the last item
+--   indefinitely, or <a>cycle</a> to cycle through the list forever.
+--   
+--   Note that this behavior is pretty simple; more advanced functionality
+--   can be achieved with <a>runPlotDynamic</a> directly.
+animatePlot :: PlotOpts -> Double -> Maybe String -> Maybe Image -> [[Series]] -> IO ()
 
 -- | Version of <a>runPlot</a> that allows you to vary the plotted data and
 --   the title. It will execute the <tt><a>IO</a> PlotData</tt> to get the
 --   current plot data; you can use this with i.e. an <a>IORef</a> to
 --   adjust the data in real-time.
-runPlotDynamic :: PlotOpts -> IO PlotData -> IO ()
+runPlotDynamic :: PlotOpts -> (Event -> IO Bool) -> IO (Maybe PlotData) -> IO ()
 
 -- | Dynamically adjustable plot data.
 data PlotData
-PlotData :: Maybe String -> [Series] -> PlotData
+PlotData :: Maybe String -> Maybe Image -> [Series] -> PlotData
 [_pdTitle] :: PlotData -> Maybe String
+[_pdDesc] :: PlotData -> Maybe Image
 [_pdSerieses] :: PlotData -> [Series]
+
+-- | Getter/setter lens to the title field of a <a>PlotData</a>
 pdTitle :: Lens' PlotData (Maybe String)
+
+-- | Getter/setter lens to the serieses field of a <a>PlotData</a>
 pdSerieses :: Lens' PlotData [Series]
+
+-- | Getter/setter lens to the description box field of a <a>PlotData</a>
+pdDesc :: Lens' PlotData (Maybe Image)
 instance Interactive.Plot.Run.HasPlotState Interactive.Plot.Run.PlotState
 
 
