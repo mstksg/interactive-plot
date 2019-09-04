@@ -11,13 +11,12 @@ extra-source-files:
 - CHANGELOG.md
 
 # Metadata used when publishing your package
-synopsis:            Quick time series plotting meant to be used interactively in ghci
+synopsis:            Interactive quick time series plotting
 category:            Interactive
 
-# To avoid duplicated efforts in documentation and dealing with the
-# complications of embedding Haddock markup inside cabal files, it is
-# common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/mstksg/interactive-plot#readme>
+description: |
+  Quick time series terminal plotting for data exploration/in ghci. See
+  documentation for "Interactive.Plot".
 
 dependencies:
 - base >= 4.7 && < 5

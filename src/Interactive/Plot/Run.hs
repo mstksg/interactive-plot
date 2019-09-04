@@ -111,6 +111,8 @@ pdSerieses :: Lens' PlotData [Series]
 pdSerieses f (PlotData x y z) = PlotData x y <$> f z
 
 -- | Display fixed plot and title interactively, filling in default values.
+--
+-- See 'runPlotDynamic' for more control.
 runPlotAuto
     :: PlotOpts
     -> Maybe String     -- ^ title
@@ -122,6 +124,8 @@ runPlotAuto po t d s = case po ^. poAutoMethod of
     Just g  -> runPlot po t d $ fromAutoSeries_ g s
 
 -- | Display fixed plot and title interactively.
+--
+-- See 'runPlotDynamic' for more control.
 runPlot
     :: PlotOpts
     -> Maybe String     -- ^ title

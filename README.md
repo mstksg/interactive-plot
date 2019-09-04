@@ -1,4 +1,4 @@
 interactive-plot
 ================
 
-Simple terminal interactive plotter.
+Quick time series terminal plotting for data exploration/in ghci.

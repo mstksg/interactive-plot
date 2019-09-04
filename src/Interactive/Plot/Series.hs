@@ -11,9 +11,8 @@
 --
 -- Create common serieses.
 module Interactive.Plot.Series (
-    defaultStyles
   -- * Create a 'Series' from an 'AutoSeries'.
-  , fromAutoSeries
+    fromAutoSeries
   , fromAutoSeriesIO
   , fromAutoSeries_
   -- * Create common 'Series'
@@ -21,6 +20,7 @@ module Interactive.Plot.Series (
   , tupleSeries
   , funcSeries
   , enumRange
+  , defaultStyles
   ) where
 
 import           Control.Monad.Random
