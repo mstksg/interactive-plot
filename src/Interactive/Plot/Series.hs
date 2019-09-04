@@ -1,6 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE TemplateHaskell  #-}
 
 -- |
 -- Module      : Interative.Plot.Series

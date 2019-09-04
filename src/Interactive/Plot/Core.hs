@@ -6,11 +6,9 @@
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE LambdaCase           #-}
 {-# LANGUAGE PatternSynonyms      #-}
-{-# LANGUAGE PatternSynonyms      #-}
 {-# LANGUAGE RecordWildCards      #-}
 {-# LANGUAGE StandaloneDeriving   #-}
 {-# LANGUAGE TemplateHaskell      #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns         #-}
 
@@ -32,13 +30,14 @@ module Interactive.Plot.Core (
   , PointStyle, pattern PointStyle, _psMarker, _psColor, PointStyleF(..), AutoPointStyle, psMarker, psColor
   , Series, SeriesF(..), AutoSeries, sItems, sStyle, toCoordMap, fromCoordMap
   , Alignment(..)
-  , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange, poRange, poAutoMethod, poHelp
+  , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange, poRange, poAutoMethod, poHelp, poFramerate, poDelay
   , defaultPlotOpts
   , renderPlot
   -- * Internal
   , plotRange
   , OrdColor(..)
   , renderPoint
+  , hzToDelay
   ) where
 
 import           Control.Applicative
@@ -86,7 +85,7 @@ cX f (C x y) = (`C` y) <$> f x
 
 -- | Getter/setter lens to the @x@ position in a 'Coord'.
 cY :: Lens' (Coord a) a
-cY f (C x y) = (C x) <$> f y
+cY f (C x y) = C x <$> f y
 
 instance Num a => Num (Coord a) where
     (+) = liftA2 (+)
@@ -120,7 +119,7 @@ rMin f (R x y) = (`R` y) <$> f x
 
 -- | Getter/setter lens to the maximum value in a 'Range'.
 rMax :: Lens' (Range a) a
-rMax f (R x y) = (R x) <$> f y
+rMax f (R x y) = R x <$> f y
 
 -- | "Zipping" behavior on minimum and maximum
 instance Applicative Range where
@@ -138,7 +137,7 @@ instance Monad Range where
 --
 -- Its 'Semigroup' instance keeps the last 'Given'.
 data Auto a = Auto | Given a
-  deriving (Show, Eq, Ord, Generic)
+  deriving (Show, Eq, Ord, Generic, Functor)
 
 instance Semigroup (Auto a) where
     (<>) = \case
@@ -147,6 +146,30 @@ instance Semigroup (Auto a) where
 
 instance Monoid (Auto a) where
     mempty = Auto
+
+instance Applicative Auto where
+    pure = Given
+    (<*>) = \case
+      Auto    -> const Auto
+      Given f -> \case
+        Auto    -> Auto
+        Given x -> Given (f x)
+
+instance Monad Auto where
+    return = Given
+    (>>=) = \case
+      Auto    -> const Auto
+      Given x -> ($ x)
+
+-- | Opposite behavior of 'Semigroup' instance.
+instance Alternative Auto where
+    empty = Auto
+    (<|>) = \case
+      Auto    -> id
+      Given x -> const (Given x)
+
+-- | Opposite behavior of 'Semigroup' instance.
+instance MonadPlus Auto
 
 -- | A parameterized version of 'PointStyle' to unify functions in
 -- "Interactive.Plot.Series".
@@ -164,7 +187,7 @@ psMarkerF f (PointStyleF x y) = (`PointStyleF` y) <$> f x
 
 -- | Getter/setter lens to the color field of a 'PointStyleF'
 psColorF :: Lens' (PointStyleF f) (f Color)
-psColorF f (PointStyleF x y) = (PointStyleF x) <$> f y
+psColorF f (PointStyleF x y) = PointStyleF x <$> f y
 
 -- | Specification of a style for a point.
 --
@@ -193,6 +216,7 @@ instance (Semigroup (f Char), Semigroup (f Color)) => Semigroup (PointStyleF f) 
 instance (Monoid (f Char), Monoid (f Color)) => Monoid (PointStyleF f) where
     mempty = PointStyleF mempty mempty
 
+deriving instance (Show (f Char), Show (f Color)) => Show (PointStyleF f)
 deriving instance (Eq (f Char), Eq (f Color)) => Eq (PointStyleF f)
 instance (Ord (f Char), Ord (f OrdColor), Functor f, Eq (f Color)) => Ord (PointStyleF f) where
     compare = comparing $ \case PointStyleF m1 c1 -> (m1, OC <$> c1)
@@ -214,6 +238,8 @@ data SeriesF f = Series { _sItems :: M.Map Double (S.Set Double)    -- ^ A map o
                         , _sStyle :: PointStyleF f                  -- ^ The style of points.  For 'Series', this is 'PointStyle'; for 'AutoSeries', this is 'AutoPointStyle'.
                         }
 
+deriving instance (Show (f Char), Show (f Color)) => Show (SeriesF f)
+
 -- | Data for a single series: contains the coordinate map with the point
 -- style for the series.
 type Series = SeriesF Identity
@@ -233,7 +259,7 @@ sItems f (Series x y) = (`Series` y) <$> f x
 -- 'sStyle' :: Lens 'AutoSeries' 'AutoPointStyle'
 -- @
 sStyle :: Lens' (SeriesF f) (PointStyleF f)
-sStyle f (Series x y) = (Series x) <$> f y
+sStyle f (Series x y) = Series x <$> f y
 
 -- | Alignment specification.
 data Alignment = ALeft
@@ -256,6 +282,7 @@ data PlotOpts = PO
                                              -- Default is an arbitrarily
                                              -- selected seed.
     , _poHelp        :: Bool                 -- ^ Whether or not to show help box initially.  Box can always be toggled with @?@. (Default is 'True')
+    , _poFramerate   :: Maybe Double         -- ^ Updates per second; 'Nothing' for no updates. Use 'poDelay' to treat this as a microsecond delay instead. (default: 'Nothing')
     }
 
 makeLenses ''PlotOpts
@@ -269,6 +296,7 @@ defaultPlotOpts = PO
     , _poYRange      = Nothing
     , _poAutoMethod  = Just $ mkStdGen 28922710942259
     , _poHelp        = True
+    , _poFramerate   = Nothing
     }
 
 instance Default PlotOpts where
@@ -322,7 +350,20 @@ within x r = x >= r ^. rMin && x <= r ^. rMax
 
 -- | Lens into a 'PlotOpts' getting its range X and range Y settings.
 poRange :: Lens' PlotOpts (Maybe (Range Double), Maybe (Range Double))
-poRange f (PO r a x y s h) = (\(x', y') -> PO r a x' y' s h) <$> f (x, y)
+poRange f (PO r a x y s h t) = (\(x', y') -> PO r a x' y' s h t) <$> f (x, y)
+
+-- | Lens into microsecond delay between frames, specified by a 'PlotOpts'.
+poDelay :: Lens' PlotOpts (Maybe Int)
+poDelay = poFramerate . hzToDelay
+
+-- | Used for 'poDelay': a lens into a microsecond delay given
+-- a framerate.  Should technically be an isomorphism, but this isn't
+-- supported by microlens.
+hzToDelay :: Lens' (Maybe Double) (Maybe Int)
+hzToDelay f md = fmap back <$> f (fmap forward md)
+  where
+    back d    = 1000000 / fromIntegral d
+    forward p = round $ 1000000 / p
 
 -- | Compute plot axis ranges based on a list of points and the size of the
 -- display region.
