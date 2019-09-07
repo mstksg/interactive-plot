@@ -358,12 +358,54 @@ runPlotAuto :: PlotOpts -> Maybe String -> Maybe Image -> [AutoSeries] -> IO ()
 
 -- | Display a series of plots (<tt>[<a>SeriesF</a>]</tt>) with a time
 --   delay between each one. Will quit when the last plot is displayed. Use
---   <tt>lastForever</tt> on the input list to repeat the last item
+--   <a>lastForever</a> on the input list to repeat the last item
 --   indefinitely, or <a>cycle</a> to cycle through the list forever.
 --   
 --   Note that this behavior is pretty simple; more advanced functionality
 --   can be achieved with <a>runPlotDynamic</a> directly.
 animatePlot :: PlotOpts -> Double -> Maybe String -> Maybe Image -> [[Series]] -> IO ()
+
+-- | Handy function to use with <a>animatePlot</a> to extend the last frame
+--   into eternity.
+lastForever :: [a] -> [a]
+
+-- | Animate (according to the framerate in the <a>PlotOpts</a>) a function
+--   <tt><a>Double</a> -&gt; <a>Maybe</a> [Series]</tt>, where the input is
+--   the current time in seconds and the output is the plot to display at
+--   that time. Will quit as soon as <a>Nothing</a> is given.
+--   
+--   Remember to give a <a>PlotOpts</a> with a <a>Just</a> framerate.
+--   
+--   This is a simple wrapper over <a>animatePlotMoore</a> with a stateless
+--   function. For more advanced functionality, use <a>animatePlotMoore</a>
+--   or <a>runPlotDynamic</a> directly.
+animatePlotFunc :: PlotOpts -> Maybe String -> Maybe Image -> (Double -> Maybe [Series]) -> IO ()
+
+-- | Animate (according to the framerate in the <a>PlotOpts</a>) a "Moore
+--   machine" description of a plot evolving over time with some initial
+--   state.
+--   
+--   Remember to give a <a>PlotOpts</a> with a <a>Just</a> framerate.
+--   
+--   For a simplified version of a stateless function, see
+--   <a>animatePlotFunc</a>. This is implemented in terms of
+--   <a>runPlotDynamic</a>, but the representation of an animation in terms
+--   of a moore machine is powerful enough to represent a very general
+--   class of animations.
+animatePlotMoore :: PlotOpts -> Maybe String -> Maybe Image -> Moore [Series] -> IO ()
+
+-- | Used for <a>animatePlotMoore</a> to specify how a plot evolves over
+--   time with some initial state.
+data Moore a
+Moore :: Maybe a -> s -> (Double -> s -> IO (Maybe (a, s))) -> Moore a
+
+-- | initial value of plot. <a>Nothing</a> for a non-starter.
+[moInitVal] :: Moore a -> Maybe a
+
+-- | initial state of plot | Given change in time since last render and old
+--   state, return new plot and state. Return <a>Nothing</a> to quit.
+[moInitState] :: Moore a -> s
+[moUpdate] :: Moore a -> Double -> s -> IO (Maybe (a, s))
 
 -- | Version of <a>runPlot</a> that allows you to vary the plotted data and
 --   the title. It will execute the <tt><a>IO</a> PlotData</tt> to get the
@@ -386,6 +428,7 @@ pdSerieses :: Lens' PlotData [Series]
 
 -- | Getter/setter lens to the description box field of a <a>PlotData</a>
 pdDesc :: Lens' PlotData (Maybe Image)
+instance GHC.Base.Functor Interactive.Plot.Run.Moore
 instance Interactive.Plot.Run.HasPlotState Interactive.Plot.Run.PlotState
 
 
@@ -404,12 +447,54 @@ runPlotAuto :: PlotOpts -> Maybe String -> Maybe Image -> [AutoSeries] -> IO ()
 
 -- | Display a series of plots (<tt>[<a>SeriesF</a>]</tt>) with a time
 --   delay between each one. Will quit when the last plot is displayed. Use
---   <tt>lastForever</tt> on the input list to repeat the last item
+--   <a>lastForever</a> on the input list to repeat the last item
 --   indefinitely, or <a>cycle</a> to cycle through the list forever.
 --   
 --   Note that this behavior is pretty simple; more advanced functionality
 --   can be achieved with <a>runPlotDynamic</a> directly.
 animatePlot :: PlotOpts -> Double -> Maybe String -> Maybe Image -> [[Series]] -> IO ()
+
+-- | Handy function to use with <a>animatePlot</a> to extend the last frame
+--   into eternity.
+lastForever :: [a] -> [a]
+
+-- | Animate (according to the framerate in the <a>PlotOpts</a>) a function
+--   <tt><a>Double</a> -&gt; <a>Maybe</a> [Series]</tt>, where the input is
+--   the current time in seconds and the output is the plot to display at
+--   that time. Will quit as soon as <a>Nothing</a> is given.
+--   
+--   Remember to give a <a>PlotOpts</a> with a <a>Just</a> framerate.
+--   
+--   This is a simple wrapper over <a>animatePlotMoore</a> with a stateless
+--   function. For more advanced functionality, use <a>animatePlotMoore</a>
+--   or <a>runPlotDynamic</a> directly.
+animatePlotFunc :: PlotOpts -> Maybe String -> Maybe Image -> (Double -> Maybe [Series]) -> IO ()
+
+-- | Animate (according to the framerate in the <a>PlotOpts</a>) a "Moore
+--   machine" description of a plot evolving over time with some initial
+--   state.
+--   
+--   Remember to give a <a>PlotOpts</a> with a <a>Just</a> framerate.
+--   
+--   For a simplified version of a stateless function, see
+--   <a>animatePlotFunc</a>. This is implemented in terms of
+--   <a>runPlotDynamic</a>, but the representation of an animation in terms
+--   of a moore machine is powerful enough to represent a very general
+--   class of animations.
+animatePlotMoore :: PlotOpts -> Maybe String -> Maybe Image -> Moore [Series] -> IO ()
+
+-- | Used for <a>animatePlotMoore</a> to specify how a plot evolves over
+--   time with some initial state.
+data Moore a
+Moore :: Maybe a -> s -> (Double -> s -> IO (Maybe (a, s))) -> Moore a
+
+-- | initial value of plot. <a>Nothing</a> for a non-starter.
+[moInitVal] :: Moore a -> Maybe a
+
+-- | initial state of plot | Given change in time since last render and old
+--   state, return new plot and state. Return <a>Nothing</a> to quit.
+[moInitState] :: Moore a -> s
+[moUpdate] :: Moore a -> Double -> s -> IO (Maybe (a, s))
 
 -- | Options used for running the plot interactively in a terminal.
 data PlotOpts
