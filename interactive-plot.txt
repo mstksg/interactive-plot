@@ -398,6 +398,8 @@ animatePlotMoore :: PlotOpts -> Maybe String -> Maybe Image -> Moore [Series] ->
 --   time with some initial state.
 data Moore a
 Moore :: Maybe a -> s -> (Double -> s -> IO (Maybe (a, s))) -> Moore a
+
+-- | initial value of plot. <a>Nothing</a> for a non-starter.
 [moInitVal] :: Moore a -> Maybe a
 
 -- | initial state of plot
@@ -487,6 +489,8 @@ animatePlotMoore :: PlotOpts -> Maybe String -> Maybe Image -> Moore [Series] ->
 --   time with some initial state.
 data Moore a
 Moore :: Maybe a -> s -> (Double -> s -> IO (Maybe (a, s))) -> Moore a
+
+-- | initial value of plot. <a>Nothing</a> for a non-starter.
 [moInitVal] :: Moore a -> Maybe a
 
 -- | initial state of plot
