@@ -398,13 +398,13 @@ animatePlotMoore :: PlotOpts -> Maybe String -> Maybe Image -> Moore [Series] ->
 --   time with some initial state.
 data Moore a
 Moore :: Maybe a -> s -> (Double -> s -> IO (Maybe (a, s))) -> Moore a
-
--- | initial value of plot. <a>Nothing</a> for a non-starter.
 [moInitVal] :: Moore a -> Maybe a
 
--- | initial state of plot | Given change in time since last render and old
---   state, return new plot and state. Return <a>Nothing</a> to quit.
+-- | initial state of plot
 [moInitState] :: Moore a -> s
+
+-- | Given change in time since last render and old state, return new plot
+--   and state. Return <a>Nothing</a> to quit.
 [moUpdate] :: Moore a -> Double -> s -> IO (Maybe (a, s))
 
 -- | Version of <a>runPlot</a> that allows you to vary the plotted data and
@@ -487,13 +487,13 @@ animatePlotMoore :: PlotOpts -> Maybe String -> Maybe Image -> Moore [Series] ->
 --   time with some initial state.
 data Moore a
 Moore :: Maybe a -> s -> (Double -> s -> IO (Maybe (a, s))) -> Moore a
-
--- | initial value of plot. <a>Nothing</a> for a non-starter.
 [moInitVal] :: Moore a -> Maybe a
 
--- | initial state of plot | Given change in time since last render and old
---   state, return new plot and state. Return <a>Nothing</a> to quit.
+-- | initial state of plot
 [moInitState] :: Moore a -> s
+
+-- | Given change in time since last render and old state, return new plot
+--   and state. Return <a>Nothing</a> to quit.
 [moUpdate] :: Moore a -> Double -> s -> IO (Maybe (a, s))
 
 -- | Options used for running the plot interactively in a terminal.
