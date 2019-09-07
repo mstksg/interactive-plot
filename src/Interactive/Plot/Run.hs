@@ -1,9 +1,13 @@
-{-# LANGUAGE ApplicativeDo    #-}
-{-# LANGUAGE LambdaCase       #-}
-{-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE TemplateHaskell  #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ViewPatterns     #-}
+{-# LANGUAGE ApplicativeDo             #-}
+{-# LANGUAGE DeriveFunctor             #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE LambdaCase                #-}
+{-# LANGUAGE RecordWildCards           #-}
+{-# LANGUAGE StandaloneDeriving        #-}
+{-# LANGUAGE TemplateHaskell           #-}
+{-# LANGUAGE TupleSections             #-}
+{-# LANGUAGE TypeApplications          #-}
+{-# LANGUAGE ViewPatterns              #-}
 
 -- |
 -- Module      : Interative.Plot.Run
@@ -16,11 +20,17 @@
 --
 -- Run plots interactively in the terminal.
 module Interactive.Plot.Run (
+  -- * Simple
     runPlot
   , runPlotAuto
-  , animatePlot
+  -- * Animated
+  , animatePlot, lastForever
+  , animatePlotFunc
+  , animatePlotMoore, Moore(..)
+  -- * Custom
   , runPlotDynamic
   , PlotData(..), pdTitle, pdSerieses, pdDesc
+
   ) where
 
 import           Control.Applicative
@@ -149,9 +159,9 @@ animatePlot
     -> [[Series]]       -- ^ list of series data (potentially infinite)
     -> IO ()
 animatePlot po fps t d ss = do
-    ssRef <- newEmptyMVar
+    ssRef    <- newEmptyMVar
     rateMult <- newIORef 0
-    tid   <- forkIO $ do
+    tid      <- forkIO $ do
       forM_ ss $ \s -> do
         putMVar ssRef (Just s)
         threadDelay . mkDelay =<< readIORef rateMult
@@ -163,15 +173,107 @@ animatePlot po fps t d ss = do
     mkDelay i = round $ 1000000 / (fps * (2 ** (fromIntegral i / 2)))
     mkData rateMult ssRef = do
       ss' <- readMVar ssRef
-      r   <- readIORef rateMult
-      let rString
-            | r == 0    = ""
-            | otherwise = printf " (x%.2f)" $ 2 ** (fromIntegral @_ @Double r / 2)
-          desc  = string defAttr $ "[/]    rate" ++ rString
-          desc' = (`vertJoin` desc) . (`vertJoin` char defAttr ' ') <$> d
-      pure $ PlotData t (desc' <|> Just desc)
-          <$> ss'
-    po' = po & poFramerate %~ (<|> Just (max fps 20))
+      desc <- animateDesc d <$> readIORef rateMult
+      pure $ PlotData t desc <$> ss'
+    po' = po & poFramerate %~ (<|> Just (max fps 10))
+    updateFr :: IORef Int -> Event -> IO Bool
+    updateFr rateMult = \case
+      EvKey (KChar '[') []      -> True <$ modifyIORef rateMult (subtract 1)
+      EvKey (KChar ']') []      -> True <$ modifyIORef rateMult (+ 1)
+      _                         -> pure True
+
+-- | Handy function to use with 'animatePlot' to extend the last frame into
+-- eternity.
+lastForever :: [a] -> [a]
+lastForever []           = []
+lastForever [x]          = repeat x
+lastForever (x:xs@(_:_)) = x : lastForever xs
+
+animateDesc :: Maybe Image -> Int -> Maybe Image
+animateDesc d r = desc' <|> Just desc
+  where
+    desc  = string defAttr $ "[/]    rate" ++ rString
+    desc' = (`vertJoin` desc) . (`vertJoin` char defAttr ' ') <$> d
+    rString
+      | r == 0    = ""
+      | otherwise = printf " (x%.2f)" $ 2 ** (fromIntegral @_ @Double r / 2)
+
+
+-- | Animate (according to the framerate in the 'PlotOpts') a function
+-- @'Double' -> 'Maybe' [Series]@, where the input is the current time in
+-- seconds and the output is the plot to display at that time.  Will quit
+-- as soon as 'Nothing' is given.
+--
+-- Remember to give a 'PlotOpts' with a 'Just' framerate.
+--
+-- This is a simple wrapper over 'animatePlotMoore' with a stateless
+-- function.  For more advanced functionality, use 'animatePlotMoore' or
+-- 'runPlotDynamic' directly.
+animatePlotFunc
+    :: PlotOpts
+    -> Maybe String                 -- ^ title
+    -> Maybe Image                  -- ^ description box
+    -> (Double -> Maybe [Series])   -- ^ function from time to plot. will quit as soon as 'Nothing' is returned.
+    -> IO ()
+animatePlotFunc po t d f = animatePlotMoore po t d $ Moore
+    { moInitVal   = f 0
+    , moInitState = 0
+    , moUpdate    = \dt tt ->
+        let t' = tt + dt
+        in  pure $ (, t') <$> f t'
+    }
+
+-- | Used for 'animatePlotMoore' to specify how a plot evolves over time
+-- with some initial state.
+data Moore a = forall s. Moore
+    { moInitVal   :: Maybe a    -- ^ initial value of plot.  'Nothing' for a non-starter.
+    , moInitState :: s          -- ^ initial state of plot
+    -- | Given change in time since last render and old state, return new
+    -- plot and state. Return 'Nothing' to quit.
+    , moUpdate    :: Double -> s -> IO (Maybe (a, s))
+    }
+
+deriving instance Functor Moore
+
+-- | Animate (according to the framerate in the 'PlotOpts') a "Moore
+-- machine" description of a plot evolving over time with some initial
+-- state.
+--
+-- Remember to give a 'PlotOpts' with a 'Just' framerate.
+--
+-- For a simplified version of a stateless function, see 'animatePlotFunc'.
+-- This is implemented in terms of 'runPlotDynamic', but the representation
+-- of an animation in terms of a moore machine is powerful enough to
+-- represent a very general class of animations.
+animatePlotMoore
+    :: PlotOpts
+    -> Maybe String     -- ^ title
+    -> Maybe Image      -- ^ description box
+    -> Moore [Series]   -- ^ moore machine representing progression of plot from an initial state
+    -> IO ()
+animatePlotMoore po t d Moore{..} = do
+    ssRef     <- newIORef moInitVal
+    rateMult  <- newIORef 0
+    currState <- newIORef moInitState
+    tid   <- forkIO . void . runMaybeT . many . MaybeT . fmap guard $ do
+      threadDelay td
+      dt <- mkDT <$> readIORef rateMult
+      s  <- readIORef currState
+      moUpdate dt s >>= \case
+        Nothing       -> False <$ writeIORef ssRef Nothing
+        Just (xs, s') -> True <$ do
+          writeIORef ssRef (Just xs)
+          writeIORef currState s'
+    runPlotDynamic po (updateFr rateMult) (mkData rateMult ssRef)
+    killThread tid
+  where
+    fps = fromMaybe 1       $ po ^. poFramerate
+    td  = fromMaybe 1000000 $ po ^. poDelay
+    mkDT i = 1 / (fps * (2 ** (- fromIntegral i / 2)))
+    mkData rateMult ssRef = do
+      ss' <- readIORef ssRef
+      desc <- animateDesc d <$> readIORef rateMult
+      pure $ PlotData t desc <$> ss'
     updateFr :: IORef Int -> Event -> IO Bool
     updateFr rateMult = \case
       EvKey (KChar '[') []      -> True <$ modifyIORef rateMult (subtract 1)

@@ -15,7 +15,10 @@ module Interactive.Plot (
   -- * Run a Plot
     runPlot
   , runPlotAuto
-  , animatePlot
+  -- ** Animated
+  , animatePlot, lastForever
+  , animatePlotFunc
+  , animatePlotMoore, Moore(..)
   -- ** Options
   , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange, poRange, poAutoMethod, poHelp, poFramerate, poDelay
   , defaultPlotOpts

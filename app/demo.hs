@@ -12,4 +12,6 @@ main = do
     runPlotAuto defaultPlotOpts (Just "simple test") Nothing [cosTest, lineTest]
     animatePlot defaultPlotOpts 10 (Just "animate test") Nothing $
       map (fromAutoSeries . (:[]) . sinTest) [0,0.1..]
+    animatePlotFunc (defaultPlotOpts { _poFramerate = Just 20 }) (Just "animate test") Nothing $
+      Just . fromAutoSeries . (:[]) . sinTest
 

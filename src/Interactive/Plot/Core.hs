@@ -139,6 +139,7 @@ instance Monad Range where
 data Auto a = Auto | Given a
   deriving (Show, Eq, Ord, Generic, Functor)
 
+-- | Keeps the final 'Given': like 'Data.Monoid.Last'
 instance Semigroup (Auto a) where
     (<>) = \case
       Auto    -> id
@@ -161,14 +162,16 @@ instance Monad Auto where
       Auto    -> const Auto
       Given x -> ($ x)
 
--- | Opposite behavior of 'Semigroup' instance.
+-- | Opposite behavior of 'Semigroup' instance: like 'Maybe's 'Alternative'
+-- instance, or 'Data.Monoid.First'.
 instance Alternative Auto where
     empty = Auto
     (<|>) = \case
       Auto    -> id
       Given x -> const (Given x)
 
--- | Opposite behavior of 'Semigroup' instance.
+-- | Opposite behavior of 'Semigroup' instance: like 'Maybe's 'Alternative'
+-- instance, or 'Data.Monoid.First'.
 instance MonadPlus Auto
 
 -- | A parameterized version of 'PointStyle' to unify functions in
