@@ -26,6 +26,8 @@ runPlotAuto
     -> IO ()
 ```
 
+![Static Plots](https://i.imgur.com/o1jLTQF.gif)
+
 These plots can be zoomed, stretched, scaled, panned interactively after
 launch.  If you quit, things resume back to the ghci session (or whatever point
 in the program you launch from).
@@ -48,3 +50,5 @@ animatePlotFunc
     -> (Double -> Maybe [Series])   -- ^ function from time to plot. will quit as soon as 'Nothing' is returned.
     -> IO ()
 ```
+
+![Animated Plots](https://i.imgur.com/bldPsee.gif)

@@ -202,7 +202,7 @@ type PointStyle     = PointStyleF Identity
 --
 -- You can construct this with the 'PointStyleF' constructor.
 --
--- It has a very convenient 'Monoid'/'Semigroup' instance: 'mempty' gives
+-- It has a very convenient 'Monoid' instance: 'mempty' gives
 -- a 'PointStyle' where every field is 'Auto', and '<>' combines
 -- 'PointStyle's field-by-field, keeping the last 'Given'.
 type AutoPointStyle = PointStyleF Auto
