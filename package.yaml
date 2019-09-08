@@ -16,7 +16,7 @@ category:            Interactive
 
 description: |
   Quick time series terminal plotting for data exploration/in ghci. See
-  documentation for "Interactive.Plot".
+  documentation for "Interactive.Plot" and README for more information.
 
 dependencies:
 - base >= 4.7 && < 5

@@ -124,7 +124,7 @@ pdSerieses f (PlotData x y z) = PlotData x y <$> f z
 --
 -- See 'runPlotDynamic' for more control.
 runPlotAuto
-    :: PlotOpts
+    :: PlotOpts         -- ^ options (can be 'defaultPlotOpts')
     -> Maybe String     -- ^ title
     -> Maybe Image      -- ^ description box
     -> [AutoSeries]     -- ^ uninitialized series data
@@ -137,7 +137,7 @@ runPlotAuto po t d s = case po ^. poAutoMethod of
 --
 -- See 'runPlotDynamic' for more control.
 runPlot
-    :: PlotOpts
+    :: PlotOpts         -- ^ options (can be 'defaultPlotOpts')
     -> Maybe String     -- ^ title
     -> Maybe Image      -- ^ description box
     -> [Series]         -- ^ series data
@@ -152,7 +152,7 @@ runPlot po t d s = runPlotDynamic po (const (pure True)) (pure (Just (PlotData t
 -- Note that this behavior is pretty simple; more advanced functionality
 -- can be achieved with 'runPlotDynamic' directly.
 animatePlot
-    :: PlotOpts
+    :: PlotOpts         -- ^ options (can be 'defaultPlotOpts')
     -> Double           -- ^ update rate (frames per second)
     -> Maybe String     -- ^ title
     -> Maybe Image      -- ^ description box
@@ -210,7 +210,7 @@ animateDesc d r = desc' <|> Just desc
 -- function.  For more advanced functionality, use 'animatePlotMoore' or
 -- 'runPlotDynamic' directly.
 animatePlotFunc
-    :: PlotOpts
+    :: PlotOpts         -- ^ options (can be 'defaultPlotOpts', but remember to set a framerate)
     -> Maybe String                 -- ^ title
     -> Maybe Image                  -- ^ description box
     -> (Double -> Maybe [Series])   -- ^ function from time to plot. will quit as soon as 'Nothing' is returned.
@@ -226,10 +226,12 @@ animatePlotFunc po t d f = animatePlotMoore po t d $ Moore
 -- | Used for 'animatePlotMoore' to specify how a plot evolves over time
 -- with some initial state.
 data Moore a = forall s. Moore
-    { moInitVal   :: Maybe a    -- ^ initial value of plot.  'Nothing' for a non-starter.
-    , moInitState :: s          -- ^ initial state of plot
-    -- | Given change in time since last render and old state, return new
-    -- plot and state. Return 'Nothing' to quit.
+    { -- | initial value of plot.  'Nothing' for a non-starter.
+      moInitVal   :: Maybe a
+      -- | initial state of plot
+    , moInitState :: s
+      -- | Given change in time since last render and old state, return new
+      -- plot and state. Return 'Nothing' to quit.
     , moUpdate    :: Double -> s -> IO (Maybe (a, s))
     }
 
@@ -246,7 +248,7 @@ deriving instance Functor Moore
 -- of an animation in terms of a moore machine is powerful enough to
 -- represent a very general class of animations.
 animatePlotMoore
-    :: PlotOpts
+    :: PlotOpts         -- ^ options (can be 'defaultPlotOpts', but remember to set a framerate)
     -> Maybe String     -- ^ title
     -> Maybe Image      -- ^ description box
     -> Moore [Series]   -- ^ moore machine representing progression of plot from an initial state

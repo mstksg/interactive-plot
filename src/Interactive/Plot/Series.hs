@@ -11,15 +11,17 @@
 --
 -- Create common serieses.
 module Interactive.Plot.Series (
-  -- * Create a 'Series' from an 'AutoSeries'.
-    fromAutoSeries
-  , fromAutoSeriesIO
-  , fromAutoSeries_
+    Series, AutoSeries, SeriesF(..)
+  , PointStyle, AutoPointStyle, PointStyleF(..)
   -- * Create common 'Series'
   , listSeries
   , tupleSeries
   , funcSeries
   , enumRange
+  -- * Create a 'Series' from an 'AutoSeries'.
+  , fromAutoSeries
+  , fromAutoSeriesIO
+  , fromAutoSeries_
   , defaultStyles
   ) where
 
