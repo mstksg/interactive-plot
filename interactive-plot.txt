@@ -123,8 +123,8 @@ PointStyleF :: f Char -> f Color -> PointStyleF f
 --   
 --   You can construct this with the <a>PointStyleF</a> constructor.
 --   
---   It has a very convenient 'Monoid'/'Semigroup' instance: <a>mempty</a>
---   gives a <a>PointStyle</a> where every field is <a>Auto</a>, and
+--   It has a very convenient <a>Monoid</a> instance: <a>mempty</a> gives a
+--   <a>PointStyle</a> where every field is <a>Auto</a>, and
 --   <a>&lt;&gt;</a> combines <a>PointStyle</a>s field-by-field, keeping
 --   the last <a>Given</a>.
 type AutoPointStyle = PointStyleF Auto
@@ -321,8 +321,8 @@ type PointStyle = PointStyleF Identity
 --   
 --   You can construct this with the <a>PointStyleF</a> constructor.
 --   
---   It has a very convenient 'Monoid'/'Semigroup' instance: <a>mempty</a>
---   gives a <a>PointStyle</a> where every field is <a>Auto</a>, and
+--   It has a very convenient <a>Monoid</a> instance: <a>mempty</a> gives a
+--   <a>PointStyle</a> where every field is <a>Auto</a>, and
 --   <a>&lt;&gt;</a> combines <a>PointStyle</a>s field-by-field, keeping
 --   the last <a>Given</a>.
 type AutoPointStyle = PointStyleF Auto
@@ -617,8 +617,8 @@ _psColor :: PointStyle -> Color
 --   
 --   You can construct this with the <a>PointStyleF</a> constructor.
 --   
---   It has a very convenient 'Monoid'/'Semigroup' instance: <a>mempty</a>
---   gives a <a>PointStyle</a> where every field is <a>Auto</a>, and
+--   It has a very convenient <a>Monoid</a> instance: <a>mempty</a> gives a
+--   <a>PointStyle</a> where every field is <a>Auto</a>, and
 --   <a>&lt;&gt;</a> combines <a>PointStyle</a>s field-by-field, keeping
 --   the last <a>Given</a>.
 type AutoPointStyle = PointStyleF Auto
