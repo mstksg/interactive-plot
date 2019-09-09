@@ -183,7 +183,7 @@ ARight :: Alignment
 
 -- | Options used for running the plot interactively in a terminal.
 data PlotOpts
-PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> Maybe StdGen -> Bool -> Maybe Double -> PlotOpts
+PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> Maybe StdGen -> Bool -> Maybe Double -> Maybe Image -> PlotOpts
 
 -- | character width ratio of terminal (H/W). Default is 2.1.
 [_poTermRatio] :: PlotOpts -> Double
@@ -211,6 +211,10 @@ PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> 
 --   to treat this as a microsecond delay instead. (default:
 --   <a>Nothing</a>)
 [_poFramerate] :: PlotOpts -> Maybe Double
+
+-- | Initial extra information in description box. Ignored if directly
+--   using <tt>runPlotDynamic</tt>. Default is <a>Nothing</a>
+[_poDescription] :: PlotOpts -> Maybe Image
 poTermRatio :: Lens' PlotOpts Double
 poAspectRatio :: Lens' PlotOpts (Maybe Double)
 poXRange :: Lens' PlotOpts (Maybe (Range Double))
@@ -225,6 +229,7 @@ poFramerate :: Lens' PlotOpts (Maybe Double)
 -- | Lens into microsecond delay between frames, specified by a
 --   <a>PlotOpts</a>.
 poDelay :: Lens' PlotOpts (Maybe Int)
+poDescription :: Lens' PlotOpts (Maybe Image)
 
 -- | Sensible defaults for most terminals.
 defaultPlotOpts :: PlotOpts
@@ -402,12 +407,12 @@ module Interactive.Plot.Run
 -- | Display fixed plot and title interactively.
 --   
 --   See <a>runPlotDynamic</a> for more control.
-runPlot :: PlotOpts -> Maybe String -> Maybe Image -> [Series] -> IO ()
+runPlot :: PlotOpts -> Maybe String -> [Series] -> IO ()
 
 -- | Display fixed plot and title interactively, filling in default values.
 --   
 --   See <a>runPlotDynamic</a> for more control.
-runPlotAuto :: PlotOpts -> Maybe String -> Maybe Image -> [AutoSeries] -> IO ()
+runPlotAuto :: PlotOpts -> Maybe String -> [AutoSeries] -> IO ()
 
 -- | Display a series of plots (<tt>[<a>SeriesF</a>]</tt>) with a time
 --   delay between each one. Will quit when the last plot is displayed. Use
@@ -416,7 +421,7 @@ runPlotAuto :: PlotOpts -> Maybe String -> Maybe Image -> [AutoSeries] -> IO ()
 --   
 --   Note that this behavior is pretty simple; more advanced functionality
 --   can be achieved with <a>runPlotDynamic</a> directly.
-animatePlot :: PlotOpts -> Double -> Maybe String -> Maybe Image -> [[Series]] -> IO ()
+animatePlot :: PlotOpts -> Double -> Maybe String -> [[Series]] -> IO ()
 
 -- | Handy function to use with <a>animatePlot</a> to extend the last frame
 --   into eternity.
@@ -432,7 +437,7 @@ lastForever :: [a] -> [a]
 --   This is a simple wrapper over <a>animatePlotMoore</a> with a stateless
 --   function. For more advanced functionality, use <a>animatePlotMoore</a>
 --   or <a>runPlotDynamic</a> directly.
-animatePlotFunc :: PlotOpts -> Maybe String -> Maybe Image -> (Double -> Maybe [Series]) -> IO ()
+animatePlotFunc :: PlotOpts -> Maybe String -> (Double -> Maybe [Series]) -> IO ()
 
 -- | Animate (according to the framerate in the <a>PlotOpts</a>) a "Moore
 --   machine" description of a plot evolving over time with some initial
@@ -445,7 +450,7 @@ animatePlotFunc :: PlotOpts -> Maybe String -> Maybe Image -> (Double -> Maybe [
 --   <a>runPlotDynamic</a>, but the representation of an animation in terms
 --   of a moore machine is powerful enough to represent a very general
 --   class of animations.
-animatePlotMoore :: PlotOpts -> Maybe String -> Maybe Image -> Moore [Series] -> IO ()
+animatePlotMoore :: PlotOpts -> Maybe String -> Moore [Series] -> IO ()
 
 -- | Used for <a>animatePlotMoore</a> to specify how a plot evolves over
 --   time with some initial state.
@@ -710,12 +715,12 @@ _rSize :: Num a => Range a -> a
 -- | Display fixed plot and title interactively.
 --   
 --   See <a>runPlotDynamic</a> for more control.
-runPlot :: PlotOpts -> Maybe String -> Maybe Image -> [Series] -> IO ()
+runPlot :: PlotOpts -> Maybe String -> [Series] -> IO ()
 
 -- | Display fixed plot and title interactively, filling in default values.
 --   
 --   See <a>runPlotDynamic</a> for more control.
-runPlotAuto :: PlotOpts -> Maybe String -> Maybe Image -> [AutoSeries] -> IO ()
+runPlotAuto :: PlotOpts -> Maybe String -> [AutoSeries] -> IO ()
 
 -- | Display a series of plots (<tt>[<a>SeriesF</a>]</tt>) with a time
 --   delay between each one. Will quit when the last plot is displayed. Use
@@ -724,7 +729,7 @@ runPlotAuto :: PlotOpts -> Maybe String -> Maybe Image -> [AutoSeries] -> IO ()
 --   
 --   Note that this behavior is pretty simple; more advanced functionality
 --   can be achieved with <a>runPlotDynamic</a> directly.
-animatePlot :: PlotOpts -> Double -> Maybe String -> Maybe Image -> [[Series]] -> IO ()
+animatePlot :: PlotOpts -> Double -> Maybe String -> [[Series]] -> IO ()
 
 -- | Handy function to use with <a>animatePlot</a> to extend the last frame
 --   into eternity.
@@ -740,11 +745,11 @@ lastForever :: [a] -> [a]
 --   This is a simple wrapper over <a>animatePlotMoore</a> with a stateless
 --   function. For more advanced functionality, use <a>animatePlotMoore</a>
 --   or <a>runPlotDynamic</a> directly.
-animatePlotFunc :: PlotOpts -> Maybe String -> Maybe Image -> (Double -> Maybe [Series]) -> IO ()
+animatePlotFunc :: PlotOpts -> Maybe String -> (Double -> Maybe [Series]) -> IO ()
 
 -- | Options used for running the plot interactively in a terminal.
 data PlotOpts
-PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> Maybe StdGen -> Bool -> Maybe Double -> PlotOpts
+PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> Maybe StdGen -> Bool -> Maybe Double -> Maybe Image -> PlotOpts
 
 -- | character width ratio of terminal (H/W). Default is 2.1.
 [_poTermRatio] :: PlotOpts -> Double
@@ -772,6 +777,10 @@ PO :: Double -> Maybe Double -> Maybe (Range Double) -> Maybe (Range Double) -> 
 --   to treat this as a microsecond delay instead. (default:
 --   <a>Nothing</a>)
 [_poFramerate] :: PlotOpts -> Maybe Double
+
+-- | Initial extra information in description box. Ignored if directly
+--   using <tt>runPlotDynamic</tt>. Default is <a>Nothing</a>
+[_poDescription] :: PlotOpts -> Maybe Image
 poTermRatio :: Lens' PlotOpts Double
 poAspectRatio :: Lens' PlotOpts (Maybe Double)
 poXRange :: Lens' PlotOpts (Maybe (Range Double))
