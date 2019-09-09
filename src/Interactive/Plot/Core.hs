@@ -44,7 +44,7 @@ import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Random
 import           Data.Coerce
-import           Data.Default
+import           Data.Default.Class
 import           Data.Foldable
 import           Data.Functor.Compose
 import           Data.Functor.Identity
@@ -147,6 +147,7 @@ instance Semigroup (Auto a) where
 
 instance Monoid (Auto a) where
     mempty = Auto
+    mappend = (<>)
 
 instance Applicative Auto where
     pure = Given
