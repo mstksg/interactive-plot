@@ -25,7 +25,7 @@ runPlotAuto
     -> IO ()
 ```
 
-![Static Plots](https://i.imgur.com/o1jLTQF.gif)
+![Static Plots](https://i.imgur.com/SkH1C1j.gif)
 
 These plots can be zoomed, stretched, scaled, panned interactively after
 launch.  If you quit, things resume back to the ghci session (or whatever point
@@ -48,11 +48,10 @@ animatePlotFunc
     -> IO ()
 ```
 
-![Animated Plots](https://i.imgur.com/bldPsee.gif)
+![Animated Plots](https://i.imgur.com/37Cq8ET.gif)
 
 Todo
 ----
 
-It'd be nice if we can free serieses from the idea that they are a bunch of
-points; maybe a true function series that is unbounded and just based on every
-point being rendered.
+*   Consider being able to use functions directly as a series, instead of
+    converting them into ordered pairs based on a known x series.
