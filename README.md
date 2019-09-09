@@ -58,4 +58,5 @@ Todo
 
 *   Consider being able to use functions directly as a series, instead of
     converting them into ordered pairs based on a known x series.
+*   2D density plots?
 *   I'm sure usability could always be improved :)
