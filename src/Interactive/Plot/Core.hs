@@ -30,7 +30,7 @@ module Interactive.Plot.Core (
   , PointStyle, pattern PointStyle, _psMarker, _psColor, PointStyleF(..), AutoPointStyle, psMarker, psColor
   , Series, SeriesF(..), AutoSeries, sItems, sStyle, toCoordMap, fromCoordMap
   , Alignment(..)
-  , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange, poRange, poAutoMethod, poHelp, poFramerate, poDelay
+  , PlotOpts(..), poTermRatio, poAspectRatio, poXRange, poYRange, poRange, poAutoMethod, poHelp, poFramerate, poDelay, poDescription
   , defaultPlotOpts
   , renderPlot
   -- * Internal
@@ -286,6 +286,7 @@ data PlotOpts = PO
                                              -- selected seed.
     , _poHelp        :: Bool                 -- ^ Whether or not to show help box initially.  Box can always be toggled with @?@. (Default is 'True')
     , _poFramerate   :: Maybe Double         -- ^ Updates per second; 'Nothing' for no updates. Use 'poDelay' to treat this as a microsecond delay instead. (default: 'Nothing')
+    , _poDescription :: Maybe Image          -- ^ Initial extra information in description box.  Ignored if directly using 'runPlotDynamic'.  Default is 'Nothing'
     }
 
 makeLenses ''PlotOpts
@@ -300,6 +301,7 @@ defaultPlotOpts = PO
     , _poAutoMethod  = Just $ mkStdGen 28922710942259
     , _poHelp        = True
     , _poFramerate   = Nothing
+    , _poDescription = Nothing
     }
 
 instance Default PlotOpts where
@@ -353,7 +355,7 @@ within x r = x >= r ^. rMin && x <= r ^. rMax
 
 -- | Lens into a 'PlotOpts' getting its range X and range Y settings.
 poRange :: Lens' PlotOpts (Maybe (Range Double), Maybe (Range Double))
-poRange f (PO r a x y s h t) = (\(x', y') -> PO r a x' y' s h t) <$> f (x, y)
+poRange f (PO r a x y s h t d) = (\(x', y') -> PO r a x' y' s h t d) <$> f (x, y)
 
 -- | Lens into microsecond delay between frames, specified by a 'PlotOpts'.
 poDelay :: Lens' PlotOpts (Maybe Int)

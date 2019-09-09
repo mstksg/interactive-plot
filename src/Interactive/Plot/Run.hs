@@ -126,12 +126,11 @@ pdSerieses f (PlotData x y z) = PlotData x y <$> f z
 runPlotAuto
     :: PlotOpts         -- ^ options (can be 'defaultPlotOpts')
     -> Maybe String     -- ^ title
-    -> Maybe Image      -- ^ description box
     -> [AutoSeries]     -- ^ uninitialized series data
     -> IO ()
-runPlotAuto po t d s = case po ^. poAutoMethod of
-    Nothing -> runPlot po t d =<< fromAutoSeriesIO s
-    Just g  -> runPlot po t d $ fromAutoSeries_ g s
+runPlotAuto po t s = case po ^. poAutoMethod of
+    Nothing -> runPlot po t =<< fromAutoSeriesIO s
+    Just g  -> runPlot po t $ fromAutoSeries_ g s
 
 -- | Display fixed plot and title interactively.
 --
@@ -139,10 +138,11 @@ runPlotAuto po t d s = case po ^. poAutoMethod of
 runPlot
     :: PlotOpts         -- ^ options (can be 'defaultPlotOpts')
     -> Maybe String     -- ^ title
-    -> Maybe Image      -- ^ description box
     -> [Series]         -- ^ series data
     -> IO ()
-runPlot po t d s = runPlotDynamic po (const (pure True)) (pure (Just (PlotData t d s)))
+runPlot po t s = runPlotDynamic po
+    (const (pure True))
+    (pure (Just (PlotData t (_poDescription po) s)))
 
 -- | Display a series of plots (@['Series']@) with a time delay between
 -- each one.  Will quit when the last plot is displayed.  Use 'lastForever'
@@ -155,10 +155,9 @@ animatePlot
     :: PlotOpts         -- ^ options (can be 'defaultPlotOpts')
     -> Double           -- ^ update rate (frames per second)
     -> Maybe String     -- ^ title
-    -> Maybe Image      -- ^ description box
     -> [[Series]]       -- ^ list of series data (potentially infinite)
     -> IO ()
-animatePlot po fps t d ss = do
+animatePlot po fps t ss = do
     ssRef    <- newEmptyMVar
     rateMult <- newIORef 0
     tid      <- forkIO $ do
@@ -173,7 +172,7 @@ animatePlot po fps t d ss = do
     mkDelay i = round $ 1000000 / (fps * (2 ** (fromIntegral i / 2)))
     mkData rateMult ssRef = do
       ss' <- readMVar ssRef
-      desc <- animateDesc d <$> readIORef rateMult
+      desc <- animateDesc (_poDescription po) <$> readIORef rateMult
       pure $ PlotData t desc <$> ss'
     po' = po & poFramerate %~ (<|> Just (max fps 10))
     updateFr :: IORef Int -> Event -> IO Bool
@@ -212,10 +211,9 @@ animateDesc d r = desc' <|> Just desc
 animatePlotFunc
     :: PlotOpts         -- ^ options (can be 'defaultPlotOpts', but remember to set a framerate)
     -> Maybe String                 -- ^ title
-    -> Maybe Image                  -- ^ description box
     -> (Double -> Maybe [Series])   -- ^ function from time to plot. will quit as soon as 'Nothing' is returned.
     -> IO ()
-animatePlotFunc po t d f = animatePlotMoore po t d $ Moore
+animatePlotFunc po t f = animatePlotMoore po t $ Moore
     { moInitVal   = f 0
     , moInitState = 0
     , moUpdate    = \dt tt ->
@@ -250,10 +248,9 @@ deriving instance Functor Moore
 animatePlotMoore
     :: PlotOpts         -- ^ options (can be 'defaultPlotOpts', but remember to set a framerate)
     -> Maybe String     -- ^ title
-    -> Maybe Image      -- ^ description box
     -> Moore [Series]   -- ^ moore machine representing progression of plot from an initial state
     -> IO ()
-animatePlotMoore po t d Moore{..} = do
+animatePlotMoore po t Moore{..} = do
     ssRef     <- newIORef moInitVal
     rateMult  <- newIORef 0
     currState <- newIORef moInitState
@@ -274,7 +271,7 @@ animatePlotMoore po t d Moore{..} = do
     mkDT i = 1 / (fps * (2 ** (- fromIntegral i / 2)))
     mkData rateMult ssRef = do
       ss' <- readIORef ssRef
-      desc <- animateDesc d <$> readIORef rateMult
+      desc <- animateDesc (_poDescription po) <$> readIORef rateMult
       pure $ PlotData t desc <$> ss'
     updateFr :: IORef Int -> Event -> IO Bool
     updateFr rateMult = \case

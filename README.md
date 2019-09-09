@@ -21,7 +21,6 @@ Then simply "run" a list of series (or "automatic-styled series") using
 runPlotAuto
     :: PlotOpts         -- ^ options (can be 'defaultPlotOpts')
     -> Maybe String     -- ^ optional title
-    -> Maybe Image      -- ^ optional description box
     -> [AutoSeries]     -- ^ uninitialized data of serieses
     -> IO ()
 ```
@@ -39,16 +38,21 @@ animatePlot
     :: PlotOpts
     -> Double           -- ^ update rate (frames per second)
     -> Maybe String     -- ^ title
-    -> Maybe Image      -- ^ description box
     -> [[Series]]       -- ^ list of series data (potentially infinite)
     -> IO ()
 
 animatePlotFunc
     :: PlotOpts
     -> Maybe String                 -- ^ title
-    -> Maybe Image                  -- ^ description box
     -> (Double -> Maybe [Series])   -- ^ function from time to plot. will quit as soon as 'Nothing' is returned.
     -> IO ()
 ```
 
 ![Animated Plots](https://i.imgur.com/bldPsee.gif)
+
+Todo
+----
+
+It'd be nice if we can free serieses from the idea that they are a bunch of
+points; maybe a true function series that is unbounded and just based on every
+point being rendered.
