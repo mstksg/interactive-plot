@@ -1,5 +1,7 @@
-interactive-plot
-================
+[interactive-plot][]
+====================
+
+[interactive-plot]: https://hackage.haskell.org/package/interactive-plot
 
 Quick time series terminal plotting for data exploration/in ghci.
 
@@ -44,7 +46,8 @@ animatePlot
 animatePlotFunc
     :: PlotOpts
     -> Maybe String                 -- ^ title
-    -> (Double -> Maybe [Series])   -- ^ function from time to plot. will quit as soon as 'Nothing' is returned.
+    -> (Double -> Maybe [Series])   -- ^ function from time to plot. will quit
+                                    -- as soon as 'Nothing' is returned.
     -> IO ()
 ```
 
@@ -55,3 +58,4 @@ Todo
 
 *   Consider being able to use functions directly as a series, instead of
     converting them into ordered pairs based on a known x series.
+*   I'm sure usability could always be improved :)
