@@ -30,7 +30,7 @@ module Interactive.Plot.Run (
   -- * Custom
   , runPlotDynamic
   , PlotData(..), pdTitle, pdSerieses, pdDesc
-
+  , mockPlot
   ) where
 
 import           Control.Applicative
@@ -41,12 +41,15 @@ import           Data.Foldable
 import           Data.IORef
 import           Data.List
 import           Data.Maybe
+import           Data.String.UTF8
 import           Graphics.Vty hiding       ((<|>))
+import           Graphics.Vty.Output.Mock
 import           Interactive.Plot.Core
 import           Interactive.Plot.Series
 import           Lens.Micro
 import           Lens.Micro.TH
 import           Text.Printf
+import qualified Data.ByteString           as BS
 import qualified Data.List.NonEmpty        as NE
 
 data PEvent = PEQuit
@@ -96,10 +99,13 @@ data PlotState = PlotState
 
 makeClassy ''PlotState
 
-displayRange :: Output -> IO (Coord (Range Int))
-displayRange o = do
-    (wd, ht) <- displayBounds o
-    pure $ C (R 0 wd) (R 0 ht)
+-- displayRange :: Output -> IO (Coord (Range Int))
+-- displayRange o = do
+--     (wd, ht) <- displayBounds o
+--     pure $ C (R 0 wd) (R 0 ht)
+
+displayRegionToRange :: DisplayRegion -> Coord (Range Int)
+displayRegionToRange (wd, ht) = C (R 0 wd) (R 0 ht)
 
 -- | Dynamically adjustable plot data.
 data PlotData = PlotData
@@ -279,6 +285,22 @@ animatePlotMoore po t Moore{..} = do
       EvKey (KChar ']') []      -> True <$ modifyIORef rateMult (+ 1)
       _                         -> pure True
 
+mockPlot
+    :: DisplayRegion
+    -> PlotOpts
+    -> PlotData
+    -> IO (UTF8 BS.ByteString)
+mockPlot dr po PlotData{..} = do
+    (md, output) <- mockTerminal dr
+    let imgs = renderPlot dr'
+            (plotRange po dr' _pdSerieses)
+            _pdSerieses
+    dc <- displayContext output dr
+    outputPicture dc $ picForLayers imgs
+    readIORef md
+  where
+    dr' = displayRegionToRange dr
+
 
 -- | Version of 'runPlot' that allows you to vary the plotted data and the
 -- title.  It will execute the @'IO' PlotData@ to get the current plot
@@ -313,7 +335,7 @@ runPlotDynamic po pe ssRef = do
   where
     initPS :: Vty -> PlotData -> IO PlotState
     initPS vty PlotData{..} = do
-      dr    <- displayRange $ outputIface vty
+      dr    <- fmap displayRegionToRange . displayBounds $ outputIface vty
       pure $ PlotState
         { _psRange    = plotRange po dr _pdSerieses
         , _psHelp     = po ^. poHelp
@@ -324,7 +346,7 @@ runPlotDynamic po pe ssRef = do
         -> IORef PlotState
         -> IO Bool
     plotLoop vty peChan psRef = do
-      dr           <- displayRange $ outputIface vty
+      dr           <- fmap displayRegionToRange . displayBounds $ outputIface vty
       ps           <- readIORef psRef
       pdmaybe      <- ssRef
       fmap or . forM pdmaybe $ \pd@PlotData{..} -> do

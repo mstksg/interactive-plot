@@ -34,10 +34,12 @@ library:
   - MonadRandom
   - containers >= 0.5.11
   - data-default-class
+  - bytestring
   - microlens
   - microlens-th
   - mtl
   - transformers
+  - utf8-string
   - vty
 
 executables:

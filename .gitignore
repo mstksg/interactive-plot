@@ -2,3 +2,4 @@
 interactive-plot.cabal
 *~
 *demo*.yml
+*.dump-hi
